@@ -13,170 +13,208 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
         self.db = db
         logging.basicConfig(level=logging.DEBUG, format="[%(levelname)s] %(message)s")
         self.logger = logging.getLogger("YtCommentsService")
+        print("[srv] YtCommentsService initialized")
+
+    # ----- Helpers: legacy root/chunks -----
+
+    def _legacy_root(self, video_id: str):
+        try:
+            return self.db.video_comments_root.find_one({"video_id": video_id})
+        except Exception as e:
+            print(f"[srv] legacy_root error: {e}")
+            return None
+
+    def _legacy_root_by_child(self, parent_id: str):
+        try:
+            return self.db.video_comments_root.find_one({f"comments.{parent_id}": {"$exists": True}})
+        except Exception as e:
+            print(f"[srv] legacy_root_by_child error: {e}")
+            return None
+
+    def _legacy_text(self, chunk_id: str, local_id: str) -> str:
+        if not chunk_id or not local_id:
+            return ""
+        try:
+            oid = ObjectId(chunk_id)
+            chunk = self.db.video_comments_chunks.find_one({"_id": oid})
+        except Exception:
+            chunk = self.db.video_comments_chunks.find_one({"_id": chunk_id})
+        if not chunk:
+            return ""
+        texts = chunk.get("texts", {}) or {}
+        txt = texts.get(local_id)
+        return txt if isinstance(txt, str) else ""
+
+    def _visible(self, meta: dict, include_deleted: bool) -> bool:
+        if include_deleted:
+            return True
+        return bool(meta.get("visible", True))
+
+    def _sort_key(self, meta: dict) -> int:
+        try:
+            return int(meta.get("created_at", 0))
+        except Exception:
+            return 0
+
+    def _legacy_children_ids(self, root: dict, parent_id: str) -> list:
+        cmap = (root.get("tree_aux") or {}).get("children_map") or {}
+        return list(cmap.get(parent_id, []) or [])
+
+    def _legacy_roots_ids(self, root: dict) -> list:
+        depth = (root.get("tree_aux") or {}).get("depth_index") or {}
+        return list(depth.get("0", []) or [])
+
+    def _reply_count_visible(self, root: dict, comments_map: dict, cid: str, include_deleted: bool) -> int:
+        ids = self._legacy_children_ids(root, cid)
+        cnt = 0
+        for rid in ids:
+            m = comments_map.get(rid) or {}
+            if self._visible(m, include_deleted):
+                cnt += 1
+        return cnt
+
+    # ----- RPCs -----
 
     async def ListTop(self, request, context):
-        self.logger.debug(f"Received ListTop request: {request}")
+        print(f"[srv] ListTop: req video_id={request.video_id} page_size={request.page_size} include_deleted={request.include_deleted} sort={request.sort}")
         try:
-            # Top level filter
-            filter_query = {"video_id": request.video_id, "parent_id": None}
-            if not request.include_deleted:
-                filter_query["is_deleted"] = False
+            root = self._legacy_root(request.video_id)
+            if not root:
+                print("[srv] ListTop: legacy root not found, returning empty")
+                return ytcomments_pb2.ListTopResponse(items=[], next_page_token="", total_count=0)
 
-            # New or old at begin??
-            sort_order = [("created_at", -1)] if request.sort == ytcomments_pb2.SortOrder.NEWEST_FIRST else [("created_at", 1)]
+            comments_map = root.get("comments", {}) or {}
+            root_ids = self._legacy_roots_ids(root)
+            print(f"[srv] ListTop: legacy root found, comments_map={len(comments_map)} roots={len(root_ids)}")
 
-            # Pagination
-            page_size = max(1, request.page_size)
-
-            # Find comment in DB
-            comments = self.db.comments.find(filter_query).sort(sort_order).limit(page_size)
-            result_comments = []
-            async for comment in comments:
-                result_comments.append(
-                    ytcomments_pb2.Comment(
-                        id=str(comment["_id"]),
-                        video_id=comment["video_id"],
-                        parent_id="",
-                        content_raw=comment["content_raw"],
-                        content_html=comment["content_html"],
-                        is_deleted=comment["is_deleted"],
-                        edited=comment["edited"],
-                        created_at=comment["created_at"],
-                        updated_at=comment["updated_at"],
-                        user_uid=comment["user_uid"],
-                        username=comment.get("username", ""),
-                        channel_id=comment.get("channel_id", ""),
-                        reply_count=comment["reply_count"],
+            items = []
+            for cid in root_ids:
+                meta = comments_map.get(cid) or {}
+                if not isinstance(meta, dict):
+                    continue
+                if not self._visible(meta, request.include_deleted):
+                    continue
+                cref = meta.get("chunk_ref") or {}
+                txt = self._legacy_text(cref.get("chunk_id", ""), cref.get("local_id", ""))
+                created_sec = int(meta.get("created_at", 0))
+                updated_sec = int(meta.get("updated_at", meta.get("created_at", 0)))
+                reply_cnt = self._reply_count_visible(root, comments_map, cid, request.include_deleted)
+                items.append(
+                    (
+                        cid,
+                        ytcomments_pb2.Comment(
+                            id=str(cid),
+                            video_id=request.video_id,
+                            parent_id="",
+                            content_raw=txt,
+                            content_html=txt,
+                            is_deleted=False,
+                            edited=bool(meta.get("edited", False)),
+                            created_at=created_sec,
+                            updated_at=updated_sec,
+                            user_uid=str(meta.get("author_uid", "")),
+                            username=str(meta.get("author_name", "")),
+                            channel_id=str(meta.get("channel_id", "")) if meta.get("channel_id") else "",
+                            reply_count=reply_cnt,
+                        ),
+                        meta,
                     )
                 )
 
-            total_count = await self.db.comments.count_documents(filter_query)
+            newest_first = (request.sort == ytcomments_pb2.SortOrder.NEWEST_FIRST)
+            items.sort(key=lambda t: self._sort_key(t[2]), reverse=newest_first)
 
-            return ytcomments_pb2.ListTopResponse(
-                items=result_comments,
-                next_page_token="",  # Pagination (still not implemented!!)
-                total_count=total_count,
-            )
-            self.logger.debug("ListTop completed successfully.")
+            page_size = max(1, int(request.page_size))
+            items = items[:page_size]
+            pb_items = [t[1] for t in items]
+
+            total_visible = sum(1 for cid in root_ids if self._visible(comments_map.get(cid) or {}, request.include_deleted))
+            print(f"[srv] ListTop: items={len(pb_items)} total_visible_roots={total_visible}")
+
+            return ytcomments_pb2.ListTopResponse(items=pb_items, next_page_token="", total_count=total_visible)
         except PyMongoError as e:
-            self.logger.error(f"ListTop failed: {e}")
+            print(f"[srv] ListTop failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListTopResponse()
+        except Exception as e:
+            print(f"[srv] ListTop unexpected error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ytcomments_pb2.ListTopResponse()
 
     async def ListReplies(self, request, context):
-        self.logger.debug(f"Received ListReplies request: {request}")
+        print(f"[srv] ListReplies: req parent_id={request.parent_id} page_size={request.page_size} include_deleted={request.include_deleted} sort={request.sort} page_token={request.page_token!r}")
         try:
-            # Decode cursor (page_token)
-            cursor = None
-            if request.page_token:
-                try:
-                    cursor_data = json.loads(base64.b64decode(request.page_token).decode("utf-8"))
-                    cursor = {
-                        "created_at": cursor_data["created_at"],
-                        "_id": ObjectId(cursor_data["id"]),
-                    }
-                except (ValueError, KeyError, base64.binascii.Error):
-                    context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-                    context.set_details("Invalid page_token.")
-                    return ytcomments_pb2.ListRepliesResponse()
+            root = self._legacy_root_by_child(request.parent_id)
+            if not root:
+                print("[srv] ListReplies: legacy root by parent not found, return empty")
+                return ytcomments_pb2.ListRepliesResponse(items=[], next_page_token="", total_count=0)
 
-            # Form filter
-            filter_query = {"parent_id": ObjectId(request.parent_id)}
-            if not request.include_deleted:
-                filter_query["is_deleted"] = False
+            comments_map = root.get("comments", {}) or {}
+            child_ids = self._legacy_children_ids(root, request.parent_id)
+            print(f"[srv] ListReplies: legacy children for {request.parent_id}: {len(child_ids)}")
 
-            # Default is NEWEST_FIRST
-            sort_order = [("created_at", -1)] if request.sort == ytcomments_pb2.SortOrder.NEWEST_FIRST else [("created_at", 1)]
-
-            # Add cursors to filter
-            if cursor:
-                if request.sort == ytcomments_pb2.SortOrder.NEWEST_FIRST:
-                    filter_query["$or"] = [
-                        {"created_at": {"$lt": cursor["created_at"]}},
-                        {
-                            "created_at": cursor["created_at"],
-                            "_id": {"$lt": cursor["_id"]},
-                        },
-                    ]
-                elif request.sort == ytcomments_pb2.SortOrder.OLDEST_FIRST:
-                    filter_query["$or"] = [
-                        {"created_at": {"$gt": cursor["created_at"]}},
-                        {
-                            "created_at": cursor["created_at"],
-                            "_id": {"$gt": cursor["_id"]},
-                        },
-                    ]
-
-            # Make request to DB
-            comments_cursor = (
-                self.db.comments.find(filter_query)
-                .sort(sort_order)
-                .limit(request.page_size)
-            )
-
-            # Save comments list
-            comments = []
-            async for comment in comments_cursor:
-                comments.append(
-                    ytcomments_pb2.Comment(
-                        id=str(comment["_id"]),
-                        video_id=comment["video_id"],
-                        parent_id=str(comment["parent_id"]),
-                        content_raw=comment["content_raw"],
-                        content_html=comment["content_html"],
-                        is_deleted=comment["is_deleted"],
-                        edited=comment["edited"],
-                        created_at=comment["created_at"],
-                        updated_at=comment["updated_at"],
-                        user_uid=comment["user_uid"],
-                        username=comment.get("username", ""),
-                        channel_id=comment.get("channel_id", ""),
-                        reply_count=comment["reply_count"],
-                    )
+            pairs = []
+            for cid in child_ids:
+                meta = comments_map.get(cid) or {}
+                if not isinstance(meta, dict):
+                    continue
+                if not self._visible(meta, request.include_deleted):
+                    continue
+                cref = meta.get("chunk_ref") or {}
+                txt = self._legacy_text(cref.get("chunk_id", ""), cref.get("local_id", ""))
+                created_sec = int(meta.get("created_at", 0))
+                updated_sec = int(meta.get("updated_at", meta.get("created_at", 0)))
+                pb = ytcomments_pb2.Comment(
+                    id=str(cid),
+                    video_id=str(root.get("video_id") or ""),
+                    parent_id=str(request.parent_id),
+                    content_raw=txt,
+                    content_html=txt,
+                    is_deleted=False,
+                    edited=bool(meta.get("edited", False)),
+                    created_at=created_sec,
+                    updated_at=updated_sec,
+                    user_uid=str(meta.get("author_uid", "")),
+                    username=str(meta.get("author_name", "")),
+                    channel_id=str(meta.get("channel_id", "")) if meta.get("channel_id") else "",
+                    reply_count=self._reply_count_visible(root, comments_map, cid, request.include_deleted),
                 )
+                pairs.append((cid, meta, pb))
 
-            # Make next_page_token
-            next_page_token = None
-            if comments:
-                last_comment = comments[-1]
-                next_page_token = base64.b64encode(
-                    json.dumps(
-                        {
-                            "created_at": last_comment.created_at,
-                            "id": last_comment.id,
-                        }
-                    ).encode("utf-8")
-                ).decode("utf-8")
+            oldest_first = (request.sort == ytcomments_pb2.SortOrder.OLDEST_FIRST)
+            pairs.sort(key=lambda t: self._sort_key(t[1]), reverse=not oldest_first)
 
-            # Count all replys
-            total_count = await self.db.comments.count_documents(filter_query)
+            page_size = max(1, int(request.page_size))
+            pairs = pairs[:page_size]
+            pb_items = [t[2] for t in pairs]
 
-            return ytcomments_pb2.ListRepliesResponse(
-                items=comments,
-                next_page_token=next_page_token or "",
-                total_count=total_count,
-            )
-            self.logger.debug("ListReplies completed successfully.")
+            total_visible = sum(1 for cid in child_ids if self._visible(comments_map.get(cid) or {}, request.include_deleted))
+            print(f"[srv] ListReplies: items={len(pb_items)} total_visible={total_visible}")
 
+            return ytcomments_pb2.ListRepliesResponse(items=pb_items, next_page_token="", total_count=total_visible)
         except PyMongoError as e:
-            self.logger.error(f"ListReplies failed: {e}")
+            print(f"[srv] ListReplies failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListRepliesResponse()
-
+        except Exception as e:
+            print(f"[srv] ListReplies unexpected error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ytcomments_pb2.ListRepliesResponse()
 
     async def Create(self, request, context):
-        self.logger.debug(f"Received Create request: {request}")
+        print(f"[srv] Create: req video_id={request.video_id} parent_id={request.parent_id!r} user_uid={getattr(request.ctx, 'user_uid', '')}")
         try:
-            now = int(time.time() * 1000)  # ms since epoch
+            now = int(time.time())
 
-            # New comment structure
             new_comment = {
                 "video_id": request.video_id,
-                "user_uid": request.ctx.user_uid,
-                "username": request.ctx.username,
-                "channel_id": request.ctx.channel_id,
+                "user_uid": getattr(request.ctx, "user_uid", ""),
+                "username": getattr(request.ctx, "username", ""),
+                "channel_id": getattr(request.ctx, "channel_id", ""),
                 "parent_id": ObjectId(request.parent_id) if request.parent_id else None,
                 "content_raw": request.content_raw,
                 "content_html": request.content_html,
@@ -189,17 +227,12 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 "reply_count": 0,
             }
 
-            # Insert comment to MongoDB
-            result = await self.db.comments.insert_one(new_comment)
+            result = self.db.comments.insert_one(new_comment)
 
-            # Optionaly - update replys count in parent comment.
             if request.parent_id:
-                await self.db.comments.update_one(
-                    {"_id": ObjectId(request.parent_id)},
-                    {"$inc": {"reply_count": 1}}
-                )
+                self.db.comments.update_one({"_id": ObjectId(request.parent_id)}, {"$inc": {"reply_count": 1}})
 
-            # Form reply
+            print(f"[srv] Create: inserted_id={str(result.inserted_id)}")
             return ytcomments_pb2.CreateCommentResponse(
                 comment=ytcomments_pb2.Comment(
                     id=str(result.inserted_id),
@@ -211,55 +244,56 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                     edited=False,
                     created_at=now,
                     updated_at=now,
-                    user_uid=request.ctx.user_uid,
-                    username=request.ctx.username,
-                    channel_id=request.ctx.channel_id,
+                    user_uid=getattr(request.ctx, "user_uid", ""),
+                    username=getattr(request.ctx, "username", ""),
+                    channel_id=getattr(request.ctx, "channel_id", ""),
                     reply_count=0,
                 )
             )
-            self.logger.debug("Create completed successfully.")
 
         except PyMongoError as e:
-            self.logger.error(f"Create failed: {e}")
+            print(f"[srv] Create failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.CreateCommentResponse()
+        except Exception as e:
+            print(f"[srv] Create unexpected error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ytcomments_pb2.CreateCommentResponse()
 
     async def Edit(self, request, context):
-        self.logger.debug(f"Received Edit request: {request}")
+        print(f"[srv] Edit: req comment_id={request.comment_id}")
         try:
-            # Is comment exists??
-            comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            comment = self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
             if not comment:
+                print("[srv] Edit: not found")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.EditCommentResponse()
 
-            # Check is deleted
             if comment.get("is_deleted", False):
+                print("[srv] Edit: comment is deleted")
                 context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
                 context.set_details("Cannot edit a deleted comment.")
                 return ytcomments_pb2.EditCommentResponse()
 
-            # Update it..
             updated_comment = {
                 "content_raw": request.content_raw,
-                "content_html": comment["content_html"],  # `content_html` field is prepared on app side.
+                "content_html": comment.get("content_html", ""),
                 "edited": True,
-                "updated_at": int(time.time() * 1000),
+                "updated_at": int(time.time()),
             }
 
-            result = await self.db.comments.update_one(
-                {"_id": ObjectId(request.comment_id)},
-                {"$set": updated_comment}
-            )
+            result = self.db.comments.update_one({"_id": ObjectId(request.comment_id)}, {"$set": updated_comment})
             if result.modified_count == 0:
+                print("[srv] Edit: modified_count=0")
                 context.set_code(grpc.StatusCode.UNKNOWN)
                 context.set_details("Failed to update the comment.")
                 return ytcomments_pb2.EditCommentResponse()
 
-            # Return updated comment
-            updated_comment_from_db = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            updated_comment_from_db = self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            print(f"[srv] Edit: updated_id={request.comment_id}")
             return ytcomments_pb2.EditCommentResponse(
                 comment=ytcomments_pb2.Comment(
                     id=str(updated_comment_from_db["_id"]),
@@ -272,164 +306,171 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                     created_at=updated_comment_from_db["created_at"],
                     updated_at=updated_comment_from_db["updated_at"],
                     user_uid=updated_comment_from_db["user_uid"],
-                    username=updated_comment_from_db["username"],
-                    channel_id=updated_comment_from_db["channel_id"],
-                    reply_count=updated_comment_from_db["reply_count"],
+                    username=updated_comment_from_db.get("username", ""),
+                    channel_id=updated_comment_from_db.get("channel_id", ""),
+                    reply_count=updated_comment_from_db.get("reply_count", 0),
                 )
             )
-            self.logger.debug("Edit completed successfully.")
         except PyMongoError as e:
-            self.logger.error(f"Edit failed: {e}")
+            print(f"[srv] Edit failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.EditCommentResponse()
+        except Exception as e:
+            print(f"[srv] Edit unexpected error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ytcomments_pb2.EditCommentResponse()
 
     async def Delete(self, request, context):
-        self.logger.debug(f"Received Delete request: {request}")
+        print(f"[srv] Delete: req comment_id={request.comment_id} hard_delete={request.hard_delete}")
         try:
-            # Is comment exists??
-            comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            comment = self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
             if not comment:
+                print("[srv] Delete: not found")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.DeleteCommentResponse()
 
-            # Full delete (optionally)
             if request.hard_delete:
-                result = await self.db.comments.delete_one({"_id": ObjectId(request.comment_id)})
+                result = self.db.comments.delete_one({"_id": ObjectId(request.comment_id)})
                 if result.deleted_count == 0:
+                    print("[srv] Delete: hard delete failed")
                     context.set_code(grpc.StatusCode.UNKNOWN)
                     context.set_details("Failed to hard delete the comment.")
                     return ytcomments_pb2.DeleteCommentResponse()
             else:
-                # Soft delete
-                update_result = await self.db.comments.update_one(
+                update_result = self.db.comments.update_one(
                     {"_id": ObjectId(request.comment_id)},
                     {
                         "$set": {
                             "is_deleted": True,
-                            "deleted_at": int(time.time() * 1000),
-                            "deleted_by": request.ctx.user_uid,
+                            "deleted_at": int(time.time()),
+                            "deleted_by": getattr(request.ctx, "user_uid", ""),
                         }
                     }
                 )
                 if update_result.modified_count == 0:
+                    print("[srv] Delete: soft delete failed (modified_count=0)")
                     context.set_code(grpc.StatusCode.UNKNOWN)
                     context.set_details("Failed to soft delete the comment.")
                     return ytcomments_pb2.DeleteCommentResponse()
 
-            # return updates comment if deletion was successful.
-            deleted_comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
-
+            deleted_comment = self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            print(f"[srv] Delete: done id={request.comment_id}")
             return ytcomments_pb2.DeleteCommentResponse(
                 comment=ytcomments_pb2.Comment(
                     id=str(deleted_comment["_id"]),
                     video_id=deleted_comment["video_id"],
                     parent_id=deleted_comment.get("parent_id", ""),
-                    content_raw=deleted_comment["content_raw"],
-                    content_html=deleted_comment["content_html"],
-                    is_deleted=deleted_comment["is_deleted"],
-                    edited=deleted_comment["edited"],
-                    created_at=deleted_comment["created_at"],
-                    updated_at=deleted_comment["updated_at"],
-                    user_uid=deleted_comment["user_uid"],
-                    username=deleted_comment["username"],
-                    channel_id=deleted_comment["channel_id"],
-                    reply_count=deleted_comment["reply_count"],
+                    content_raw=deleted_comment.get("content_raw", ""),
+                    content_html=deleted_comment.get("content_html", ""),
+                    is_deleted=deleted_comment.get("is_deleted", False),
+                    edited=deleted_comment.get("edited", False),
+                    created_at=deleted_comment.get("created_at", 0),
+                    updated_at=deleted_comment.get("updated_at", 0),
+                    user_uid=deleted_comment.get("user_uid", ""),
+                    username=deleted_comment.get("username", ""),
+                    channel_id=deleted_comment.get("channel_id", ""),
+                    reply_count=deleted_comment.get("reply_count", 0),
                 )
             )
-            self.logger.debug("Delete completed successfully.")
         except PyMongoError as e:
-            self.logger.error(f"Delete failed: {e}")
+            print(f"[srv] Delete failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.DeleteCommentResponse()
+        except Exception as e:
+            print(f"[srv] Delete unexpected error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ytcomments_pb2.DeleteCommentResponse()
 
     async def Restore(self, request, context):
-        self.logger.debug(f"Received Restore request: {request}")
+        print(f"[srv] Restore: req comment_id={request.comment_id}")
         try:
-            # Is comment exists??
-            comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            comment = self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
             if not comment:
+                print("[srv] Restore: not found")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.RestoreCommentResponse()
 
-            # Check is deleted
             if not comment.get("is_deleted", False):
+                print("[srv] Restore: comment is not deleted")
                 context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
                 context.set_details("Comment is not deleted.")
                 return ytcomments_pb2.RestoreCommentResponse()
 
-            # Restore comment
-            update_result = await self.db.comments.update_one(
+            update_result = self.db.comments.update_one(
                 {"_id": ObjectId(request.comment_id)},
-                {
-                    "$set": {
-                        "is_deleted": False,
-                        "deleted_at": None,
-                        "deleted_by": None,
-                    }
-                }
+                {"$set": {"is_deleted": False, "deleted_at": None, "deleted_by": None}}
             )
             if update_result.modified_count == 0:
+                print("[srv] Restore: modified_count=0")
                 context.set_code(grpc.StatusCode.UNKNOWN)
                 context.set_details("Failed to restore the comment.")
                 return ytcomments_pb2.RestoreCommentResponse()
 
-            # Return updated comment state
-            restored_comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
-
+            restored_comment = self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            print(f"[srv] Restore: done id={request.comment_id}")
             return ytcomments_pb2.RestoreCommentResponse(
                 comment=ytcomments_pb2.Comment(
                     id=str(restored_comment["_id"]),
                     video_id=restored_comment["video_id"],
                     parent_id=restored_comment.get("parent_id", ""),
-                    content_raw=restored_comment["content_raw"],
-                    content_html=restored_comment["content_html"],
-                    is_deleted=restored_comment["is_deleted"],
-                    edited=restored_comment["edited"],
-                    created_at=restored_comment["created_at"],
-                    updated_at=restored_comment["updated_at"],
-                    user_uid=restored_comment["user_uid"],
-                    username=restored_comment["username"],
-                    channel_id=restored_comment["channel_id"],
-                    reply_count=restored_comment["reply_count"],
+                    content_raw=restored_comment.get("content_raw", ""),
+                    content_html=restored_comment.get("content_html", ""),
+                    is_deleted=restored_comment.get("is_deleted", False),
+                    edited=restored_comment.get("edited", False),
+                    created_at=restored_comment.get("created_at", 0),
+                    updated_at=restored_comment.get("updated_at", 0),
+                    user_uid=restored_comment.get("user_uid", ""),
+                    username=restored_comment.get("username", ""),
+                    channel_id=restored_comment.get("channel_id", ""),
+                    reply_count=restored_comment.get("reply_count", 0),
                 )
             )
-            self.logger.debug("Restore completed successfully.")
         except PyMongoError as e:
-            self.logger.error(f"Restore failed: {e}")
+            print(f"[srv] Restore failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.RestoreCommentResponse()
+        except Exception as e:
+            print(f"[srv] Restore unexpected error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ytcomments_pb2.RestoreCommentResponse()
 
     async def GetCounts(self, request, context):
-        self.logger.debug(f"Received GetCounts request: {request}")
+        print(f"[srv] GetCounts: req video_id={request.video_id} is_moderator={getattr(request.ctx, 'is_moderator', False)}")
         try:
-            # Count only visible top level comments.
-            filter_top_level = {"video_id": request.video_id, "parent_id": None}
-            if not request.ctx.is_moderator:  # Consider moderator (for visibility deleted comments)
-                filter_top_level["is_deleted"] = False
+            root = self._legacy_root(request.video_id)
+            if root:
+                comments_map = root.get("comments", {}) or {}
+                roots = self._legacy_roots_ids(root)
+                def _vis(m: dict) -> bool:
+                    if request.ctx and getattr(request.ctx, "is_moderator", False):
+                        return True
+                    return self._visible(m, False)
 
-            # Top level comments
-            top_level_count = await self.db.comments.count_documents(filter_top_level)
+                top_level = [cid for cid in roots if _vis(comments_map.get(cid) or {})]
+                all_visible = [cid for cid, m in comments_map.items() if _vis(m)]
+                print(f"[srv] GetCounts (legacy): top_level={len(top_level)} total={len(all_visible)}")
+                return ytcomments_pb2.GetCountsResponse(
+                    top_level_count=len(top_level),
+                    total_count=len(all_visible)
+                )
 
-            # All comments
-            filter_all = {"video_id": request.video_id}
-            if not request.ctx.is_moderator:
-                filter_all["is_deleted"] = False
-
-            # All comments count
-            total_count = await self.db.comments.count_documents(filter_all)
-
-            return ytcomments_pb2.GetCountsResponse(
-                top_level_count=top_level_count,
-                total_count=total_count
-            )
-            self.logger.debug("GetCounts completed successfully.")
+            print("[srv] GetCounts: legacy root not found")
+            return ytcomments_pb2.GetCountsResponse(top_level_count=0, total_count=0)
         except PyMongoError as e:
-            self.logger.error(f"GetCounts failed: {e}")
+            print(f"[srv] GetCounts failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
+            return ytcomments_pb2.GetCountsResponse()
+        except Exception as e:
+            print(f"[srv] GetCounts unexpected error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
             return ytcomments_pb2.GetCountsResponse()
