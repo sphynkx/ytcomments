@@ -1,4 +1,5 @@
 import asyncio
+import signal
 from grpc.aio import server as grpc_server
 from grpc_reflection.v1alpha import reflection
 from concurrent.futures import ThreadPoolExecutor
@@ -39,7 +40,21 @@ async def serve():
     logger.info(f"gRPC server listening at {server_address}.")
 
     await grpc.start()
-    await grpc.wait_for_termination()
+
+    stop_event = asyncio.Event()
+
+    def handle_sigint():
+        logger.info("Received termination signal. Shutting down gracefully...")
+        stop_event.set()
+
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGINT, handle_sigint)
+    loop.add_signal_handler(signal.SIGTERM, handle_sigint)
+
+    await stop_event.wait()
+
+    await grpc.stop(grace=10)  # 10 sec for finalizations
+    logger.info("gRPC server shut down gracefully.")
 
 if __name__ == "__main__":
     asyncio.run(serve())
