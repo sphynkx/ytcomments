@@ -1,0 +1,28 @@
+[Unit]
+Description=YtComments gRPC Service
+After=network.target network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=10
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+WorkingDirectory=/opt/ytcomments
+
+ExecStart=/opt/ytcomments/.venv/bin/python main.py
+
+# --- Critical Service ---
+Restart=always
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ytcomments
+
+# Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
