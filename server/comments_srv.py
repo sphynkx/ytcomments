@@ -327,7 +327,60 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             return ytcomments_pb2.DeleteCommentResponse()
 
     async def Restore(self, request, context):
-        return ytcomments_pb2.RestoreCommentResponse()
+        try:
+            # Is comment exists??
+            comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            if not comment:
+                context.set_code(ytcomments_pb2_grpc.StatusCode.NOT_FOUND)
+                context.set_details("Comment not found.")
+                return ytcomments_pb2.RestoreCommentResponse()
+
+            # Check is deleted
+            if not comment.get("is_deleted", False):
+                context.set_code(ytcomments_pb2_grpc.StatusCode.FAILED_PRECONDITION)
+                context.set_details("Comment is not deleted.")
+                return ytcomments_pb2.RestoreCommentResponse()
+
+            # Restore comment
+            update_result = await self.db.comments.update_one(
+                {"_id": ObjectId(request.comment_id)},
+                {
+                    "$set": {
+                        "is_deleted": False,
+                        "deleted_at": None,
+                        "deleted_by": None,
+                    }
+                }
+            )
+            if update_result.modified_count == 0:
+                context.set_code(ytcomments_pb2_grpc.StatusCode.UNKNOWN)
+                context.set_details("Failed to restore the comment.")
+                return ytcomments_pb2.RestoreCommentResponse()
+
+            # Return updated comment state
+            restored_comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+
+            return ytcomments_pb2.RestoreCommentResponse(
+                comment=ytcomments_pb2.Comment(
+                    id=str(restored_comment["_id"]),
+                    video_id=restored_comment["video_id"],
+                    parent_id=restored_comment.get("parent_id", ""),
+                    content_raw=restored_comment["content_raw"],
+                    content_html=restored_comment["content_html"],
+                    is_deleted=restored_comment["is_deleted"],
+                    edited=restored_comment["edited"],
+                    created_at=restored_comment["created_at"],
+                    updated_at=restored_comment["updated_at"],
+                    user_uid=restored_comment["user_uid"],
+                    username=restored_comment["username"],
+                    channel_id=restored_comment["channel_id"],
+                    reply_count=restored_comment["reply_count"],
+                )
+            )
+        except PyMongoError as e:
+            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_details(f"Database error: {str(e)}")
+            return ytcomments_pb2.RestoreCommentResponse()
 
     async def GetCounts(self, request, context):
         return ytcomments_pb2.GetCountsResponse()
