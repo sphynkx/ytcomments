@@ -213,10 +213,118 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             return ytcomments_pb2.CreateCommentResponse()
 
     async def Edit(self, request, context):
-        return ytcomments_pb2.EditCommentResponse()
+        try:
+            # Is comment exists??
+            comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            if not comment:
+                context.set_code(ytcomments_pb2_grpc.StatusCode.NOT_FOUND)
+                context.set_details("Comment not found.")
+                return ytcomments_pb2.EditCommentResponse()
+
+            # Check is deleted
+            if comment.get("is_deleted", False):
+                context.set_code(ytcomments_pb2_grpc.StatusCode.FAILED_PRECONDITION)
+                context.set_details("Cannot edit a deleted comment.")
+                return ytcomments_pb2.EditCommentResponse()
+
+            # Update it..
+            updated_comment = {
+                "content_raw": request.content_raw,
+                "content_html": comment["content_html"],  # `content_html` field is prepared on app side.
+                "edited": True,
+                "updated_at": int(time.time() * 1000),
+            }
+
+            result = await self.db.comments.update_one(
+                {"_id": ObjectId(request.comment_id)},
+                {"$set": updated_comment}
+            )
+            if result.modified_count == 0:
+                context.set_code(ytcomments_pb2_grpc.StatusCode.UNKNOWN)
+                context.set_details("Failed to update the comment.")
+                return ytcomments_pb2.EditCommentResponse()
+
+            # Return updated comment
+            updated_comment_from_db = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            return ytcomments_pb2.EditCommentResponse(
+                comment=ytcomments_pb2.Comment(
+                    id=str(updated_comment_from_db["_id"]),
+                    video_id=updated_comment_from_db["video_id"],
+                    parent_id=updated_comment_from_db.get("parent_id", ""),
+                    content_raw=updated_comment_from_db["content_raw"],
+                    content_html=updated_comment_from_db["content_html"],
+                    is_deleted=updated_comment_from_db["is_deleted"],
+                    edited=updated_comment_from_db["edited"],
+                    created_at=updated_comment_from_db["created_at"],
+                    updated_at=updated_comment_from_db["updated_at"],
+                    user_uid=updated_comment_from_db["user_uid"],
+                    username=updated_comment_from_db["username"],
+                    channel_id=updated_comment_from_db["channel_id"],
+                    reply_count=updated_comment_from_db["reply_count"],
+                )
+            )
+        except PyMongoError as e:
+            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_details(f"Database error: {str(e)}")
+            return ytcomments_pb2.EditCommentResponse()
 
     async def Delete(self, request, context):
-        return ytcomments_pb2.DeleteCommentResponse()
+        try:
+            # Is comment exists??
+            comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+            if not comment:
+                context.set_code(ytcomments_pb2_grpc.StatusCode.NOT_FOUND)
+                context.set_details("Comment not found.")
+                return ytcomments_pb2.DeleteCommentResponse()
+
+            # Full delete (optionally)
+            if request.hard_delete:
+                result = await self.db.comments.delete_one({"_id": ObjectId(request.comment_id)})
+                if result.deleted_count == 0:
+                    context.set_code(ytcomments_pb2_grpc.StatusCode.UNKNOWN)
+                    context.set_details("Failed to hard delete the comment.")
+                    return ytcomments_pb2.DeleteCommentResponse()
+            else:
+                # Soft delete
+                update_result = await self.db.comments.update_one(
+                    {"_id": ObjectId(request.comment_id)},
+                    {
+                        "$set": {
+                            "is_deleted": True,
+                            "deleted_at": int(time.time() * 1000),
+                            "deleted_by": request.ctx.user_uid,
+                        }
+                    }
+                )
+                if update_result.modified_count == 0:
+                    context.set_code(ytcomments_pb2_grpc.StatusCode.UNKNOWN)
+                    context.set_details("Failed to soft delete the comment.")
+                    return ytcomments_pb2.DeleteCommentResponse()
+
+            # return updates comment if deletion was successful.
+            deleted_comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
+
+            return ytcomments_pb2.DeleteCommentResponse(
+                comment=ytcomments_pb2.Comment(
+                    id=str(deleted_comment["_id"]),
+                    video_id=deleted_comment["video_id"],
+                    parent_id=deleted_comment.get("parent_id", ""),
+                    content_raw=deleted_comment["content_raw"],
+                    content_html=deleted_comment["content_html"],
+                    is_deleted=deleted_comment["is_deleted"],
+                    edited=deleted_comment["edited"],
+                    created_at=deleted_comment["created_at"],
+                    updated_at=deleted_comment["updated_at"],
+                    user_uid=deleted_comment["user_uid"],
+                    username=deleted_comment["username"],
+                    channel_id=deleted_comment["channel_id"],
+                    reply_count=deleted_comment["reply_count"],
+                )
+            )
+        except PyMongoError as e:
+            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_details(f"Database error: {str(e)}")
+            return ytcomments_pb2.DeleteCommentResponse()
 
     async def Restore(self, request, context):
         return ytcomments_pb2.RestoreCommentResponse()
