@@ -1,12 +1,13 @@
 import asyncio
 from grpc.aio import server as grpc_server
+from grpc_reflection.v1alpha import reflection
 from concurrent.futures import ThreadPoolExecutor
 import logging
 
 from server.comments_srv import YtCommentsService
 from config.main_cfg import Config
 from db.mongo_db import MongoDatabase
-from proto import ytcomments_pb2_grpc
+from proto import ytcomments_pb2_grpc, ytcomments_pb2
 
 
 async def serve():
@@ -23,6 +24,14 @@ async def serve():
     grpc = grpc_server(ThreadPoolExecutor(max_workers=10))
     ytcomments_service = YtCommentsService(db)
     ytcomments_pb2_grpc.add_YtCommentsServicer_to_server(ytcomments_service, grpc)
+
+    reflection.enable_server_reflection(
+        service_names=[
+            ytcomments_pb2.DESCRIPTOR.services_by_name['YtComments'].full_name,
+            reflection.SERVICE_NAME,
+        ],
+        server=grpc,
+    )
 
     host, port = config.YTCOMMENTS_HOST, config.YTCOMMENTS_PORT
     server_address = f"{host}:{port}"
