@@ -14,4 +14,4 @@ class Config:
         self.MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "yt_comments")
         self.MONGO_USER = os.getenv("MONGO_USER", "")
         self.MONGO_PASSWORD = os.getenv("MONGO_PASSWORD", "")
-        self.MONGO_AUTH_SOURCE = os.getenv("MONGO_AUTH_SOURCE", "admin")
+        self.MONGO_AUTH_SOURCE = os.getenv("MONGO_AUTH_SOURCE", "yt_comments")
