@@ -5,13 +5,14 @@ import base64
 import json
 import time
 import logging
+import grpc
 
 
 class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
     def __init__(self, db):
         self.db = db
         logging.basicConfig(level=logging.DEBUG, format="[%(levelname)s] %(message)s")
-        logger = logging.getLogger("YtCommentsService")
+        self.logger = logging.getLogger("YtCommentsService")
 
     async def ListTop(self, request, context):
         self.logger.debug(f"Received ListTop request: {request}")
@@ -59,7 +60,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             self.logger.debug("ListTop completed successfully.")
         except PyMongoError as e:
             self.logger.error(f"ListTop failed: {e}")
-            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListTopResponse()
 
@@ -76,7 +77,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                         "_id": ObjectId(cursor_data["id"]),
                     }
                 except (ValueError, KeyError, base64.binascii.Error):
-                    context.set_code(ytcomments_pb2_grpc.StatusCode.INVALID_ARGUMENT)
+                    context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                     context.set_details("Invalid page_token.")
                     return ytcomments_pb2.ListRepliesResponse()
 
@@ -160,7 +161,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
 
         except PyMongoError as e:
             self.logger.error(f"ListReplies failed: {e}")
-            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListRepliesResponse()
 
@@ -220,7 +221,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
 
         except PyMongoError as e:
             self.logger.error(f"Create failed: {e}")
-            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.CreateCommentResponse()
 
@@ -230,13 +231,13 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             # Is comment exists??
             comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
             if not comment:
-                context.set_code(ytcomments_pb2_grpc.StatusCode.NOT_FOUND)
+                context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.EditCommentResponse()
 
             # Check is deleted
             if comment.get("is_deleted", False):
-                context.set_code(ytcomments_pb2_grpc.StatusCode.FAILED_PRECONDITION)
+                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
                 context.set_details("Cannot edit a deleted comment.")
                 return ytcomments_pb2.EditCommentResponse()
 
@@ -253,7 +254,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 {"$set": updated_comment}
             )
             if result.modified_count == 0:
-                context.set_code(ytcomments_pb2_grpc.StatusCode.UNKNOWN)
+                context.set_code(grpc.StatusCode.UNKNOWN)
                 context.set_details("Failed to update the comment.")
                 return ytcomments_pb2.EditCommentResponse()
 
@@ -279,7 +280,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             self.logger.debug("Edit completed successfully.")
         except PyMongoError as e:
             self.logger.error(f"Edit failed: {e}")
-            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.EditCommentResponse()
 
@@ -289,7 +290,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             # Is comment exists??
             comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
             if not comment:
-                context.set_code(ytcomments_pb2_grpc.StatusCode.NOT_FOUND)
+                context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.DeleteCommentResponse()
 
@@ -297,7 +298,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             if request.hard_delete:
                 result = await self.db.comments.delete_one({"_id": ObjectId(request.comment_id)})
                 if result.deleted_count == 0:
-                    context.set_code(ytcomments_pb2_grpc.StatusCode.UNKNOWN)
+                    context.set_code(grpc.StatusCode.UNKNOWN)
                     context.set_details("Failed to hard delete the comment.")
                     return ytcomments_pb2.DeleteCommentResponse()
             else:
@@ -313,7 +314,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                     }
                 )
                 if update_result.modified_count == 0:
-                    context.set_code(ytcomments_pb2_grpc.StatusCode.UNKNOWN)
+                    context.set_code(grpc.StatusCode.UNKNOWN)
                     context.set_details("Failed to soft delete the comment.")
                     return ytcomments_pb2.DeleteCommentResponse()
 
@@ -340,7 +341,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             self.logger.debug("Delete completed successfully.")
         except PyMongoError as e:
             self.logger.error(f"Delete failed: {e}")
-            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.DeleteCommentResponse()
 
@@ -350,13 +351,13 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             # Is comment exists??
             comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
             if not comment:
-                context.set_code(ytcomments_pb2_grpc.StatusCode.NOT_FOUND)
+                context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.RestoreCommentResponse()
 
             # Check is deleted
             if not comment.get("is_deleted", False):
-                context.set_code(ytcomments_pb2_grpc.StatusCode.FAILED_PRECONDITION)
+                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
                 context.set_details("Comment is not deleted.")
                 return ytcomments_pb2.RestoreCommentResponse()
 
@@ -372,7 +373,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 }
             )
             if update_result.modified_count == 0:
-                context.set_code(ytcomments_pb2_grpc.StatusCode.UNKNOWN)
+                context.set_code(grpc.StatusCode.UNKNOWN)
                 context.set_details("Failed to restore the comment.")
                 return ytcomments_pb2.RestoreCommentResponse()
 
@@ -399,7 +400,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             self.logger.debug("Restore completed successfully.")
         except PyMongoError as e:
             self.logger.error(f"Restore failed: {e}")
-            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.RestoreCommentResponse()
 
@@ -429,6 +430,6 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             self.logger.debug("GetCounts completed successfully.")
         except PyMongoError as e:
             self.logger.error(f"GetCounts failed: {e}")
-            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.GetCountsResponse()
