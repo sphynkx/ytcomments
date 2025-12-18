@@ -1,9 +1,10 @@
 from pymongo.mongo_client import MongoClient
 from pymongo.errors import PyMongoError
 
+
 class MongoDatabase:
     @staticmethod
-    async def connect(config):
+    def connect(config):
         try:
             client = MongoClient(
                 host=config.MONGO_HOST,
@@ -12,9 +13,9 @@ class MongoDatabase:
                 password=config.MONGO_PASSWORD,
                 authSource=config.MONGO_AUTH_SOURCE,
                 directConnection=True,
-                tls=False,
             )
-            await client[config.MONGO_DB_NAME].command("ping")
+            client[config.MONGO_DB_NAME].command("ping")
+            print("Successfully connected to MongoDB!")
         except PyMongoError as e:
-            raise RuntimeError(f"Failed to connect to MongoDB: {str(e)}")
+            raise RuntimeError(f"Failed to connect to MongoDB: {e}")
         return client

@@ -14,6 +14,6 @@ python -m grpc_tools.protoc \
   --grpc_python_out=. \
   ytcomments.proto
 
-sed -i 's/^import ytcomments_pb2 as ytcomments__pb2/from . import ytcomments_pb2 as ytstorage__pb2/' ytcomments_pb2_grpc.py
+sed -i 's/^import ytcomments_pb2 as ytcomments__pb2/from . import ytcomments_pb2 as ytcomments__pb2/' ytcomments_pb2_grpc.py
 
 echo "Generated: ytcomments_pb2.py ytcomments_pb2_grpc.py in $(pwd)"

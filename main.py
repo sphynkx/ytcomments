@@ -16,7 +16,7 @@ async def serve():
     config = Config()
     logger.info("Configuration loaded.")
 
-    mongo_client = await MongoDatabase.connect(config)
+    mongo_client = MongoDatabase.connect(config)
     db = mongo_client[config.MONGO_DB_NAME]
     logger.info("Connected to MongoDB.")
 
