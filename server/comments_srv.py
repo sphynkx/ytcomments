@@ -9,7 +9,51 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
         self.db = db
 
     async def ListTop(self, request, context):
-        return ytcomments_pb2.ListTopResponse()
+        try:
+            # Top level filter
+            filter_query = {"video_id": request.video_id, "parent_id": None}
+            if not request.include_deleted:
+                filter_query["is_deleted"] = False
+
+            # New or old at begin??
+            sort_order = [("created_at", -1)] if request.sort == ytcomments_pb2.SortOrder.NEWEST_FIRST else [("created_at", 1)]
+
+            # Pagination
+            page_size = max(1, request.page_size)
+
+            # Find comment in DB
+            comments = self.db.comments.find(filter_query).sort(sort_order).limit(page_size)
+            result_comments = []
+            async for comment in comments:
+                result_comments.append(
+                    ytcomments_pb2.Comment(
+                        id=str(comment["_id"]),
+                        video_id=comment["video_id"],
+                        parent_id="",
+                        content_raw=comment["content_raw"],
+                        content_html=comment["content_html"],
+                        is_deleted=comment["is_deleted"],
+                        edited=comment["edited"],
+                        created_at=comment["created_at"],
+                        updated_at=comment["updated_at"],
+                        user_uid=comment["user_uid"],
+                        username=comment.get("username", ""),
+                        channel_id=comment.get("channel_id", ""),
+                        reply_count=comment["reply_count"],
+                    )
+                )
+
+            total_count = await self.db.comments.count_documents(filter_query)
+
+            return ytcomments_pb2.ListTopResponse(
+                items=result_comments,
+                next_page_token="",  # Pagination (still not implemented!!)
+                total_count=total_count,
+            )
+        except PyMongoError as e:
+            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_details(f"Database error: {str(e)}")
+            return ytcomments_pb2.ListTopResponse()
 
     async def ListReplies(self, request, context):
         return ytcomments_pb2.ListRepliesResponse()
