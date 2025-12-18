@@ -4,13 +4,17 @@ from bson.objectid import ObjectId
 import base64
 import json
 import time
+import logging
 
 
 class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
     def __init__(self, db):
         self.db = db
+        logging.basicConfig(level=logging.DEBUG, format="[%(levelname)s] %(message)s")
+        logger = logging.getLogger("YtCommentsService")
 
     async def ListTop(self, request, context):
+        self.logger.debug(f"Received ListTop request: {request}")
         try:
             # Top level filter
             filter_query = {"video_id": request.video_id, "parent_id": None}
@@ -52,12 +56,15 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 next_page_token="",  # Pagination (still not implemented!!)
                 total_count=total_count,
             )
+            self.logger.debug("ListTop completed successfully.")
         except PyMongoError as e:
+            self.logger.error(f"ListTop failed: {e}")
             context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListTopResponse()
 
     async def ListReplies(self, request, context):
+        self.logger.debug(f"Received ListReplies request: {request}")
         try:
             # Decode cursor (page_token)
             cursor = None
@@ -149,14 +156,17 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 next_page_token=next_page_token or "",
                 total_count=total_count,
             )
+            self.logger.debug("ListReplies completed successfully.")
 
         except PyMongoError as e:
+            self.logger.error(f"ListReplies failed: {e}")
             context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListRepliesResponse()
 
 
     async def Create(self, request, context):
+        self.logger.debug(f"Received Create request: {request}")
         try:
             now = int(time.time() * 1000)  # ms since epoch
 
@@ -206,13 +216,16 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                     reply_count=0,
                 )
             )
+            self.logger.debug("Create completed successfully.")
 
         except PyMongoError as e:
+            self.logger.error(f"Create failed: {e}")
             context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.CreateCommentResponse()
 
     async def Edit(self, request, context):
+        self.logger.debug(f"Received Edit request: {request}")
         try:
             # Is comment exists??
             comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
@@ -263,12 +276,15 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                     reply_count=updated_comment_from_db["reply_count"],
                 )
             )
+            self.logger.debug("Edit completed successfully.")
         except PyMongoError as e:
+            self.logger.error(f"Edit failed: {e}")
             context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.EditCommentResponse()
 
     async def Delete(self, request, context):
+        self.logger.debug(f"Received Delete request: {request}")
         try:
             # Is comment exists??
             comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
@@ -321,12 +337,15 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                     reply_count=deleted_comment["reply_count"],
                 )
             )
+            self.logger.debug("Delete completed successfully.")
         except PyMongoError as e:
+            self.logger.error(f"Delete failed: {e}")
             context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.DeleteCommentResponse()
 
     async def Restore(self, request, context):
+        self.logger.debug(f"Received Restore request: {request}")
         try:
             # Is comment exists??
             comment = await self.db.comments.find_one({"_id": ObjectId(request.comment_id)})
@@ -377,12 +396,15 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                     reply_count=restored_comment["reply_count"],
                 )
             )
+            self.logger.debug("Restore completed successfully.")
         except PyMongoError as e:
+            self.logger.error(f"Restore failed: {e}")
             context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.RestoreCommentResponse()
 
     async def GetCounts(self, request, context):
+        self.logger.debug(f"Received GetCounts request: {request}")
         try:
             # Count only visible top level comments.
             filter_top_level = {"video_id": request.video_id, "parent_id": None}
@@ -404,7 +426,9 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 top_level_count=top_level_count,
                 total_count=total_count
             )
+            self.logger.debug("GetCounts completed successfully.")
         except PyMongoError as e:
+            self.logger.error(f"GetCounts failed: {e}")
             context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.GetCountsResponse()
