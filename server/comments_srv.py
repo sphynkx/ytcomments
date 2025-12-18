@@ -383,4 +383,28 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             return ytcomments_pb2.RestoreCommentResponse()
 
     async def GetCounts(self, request, context):
-        return ytcomments_pb2.GetCountsResponse()
+        try:
+            # Count only visible top level comments.
+            filter_top_level = {"video_id": request.video_id, "parent_id": None}
+            if not request.ctx.is_moderator:  # Consider moderator (for visibility deleted comments)
+                filter_top_level["is_deleted"] = False
+
+            # Top level comments
+            top_level_count = await self.db.comments.count_documents(filter_top_level)
+
+            # All comments
+            filter_all = {"video_id": request.video_id}
+            if not request.ctx.is_moderator:
+                filter_all["is_deleted"] = False
+
+            # All comments count
+            total_count = await self.db.comments.count_documents(filter_all)
+
+            return ytcomments_pb2.GetCountsResponse(
+                top_level_count=top_level_count,
+                total_count=total_count
+            )
+        except PyMongoError as e:
+            context.set_code(ytcomments_pb2_grpc.StatusCode.INTERNAL)
+            context.set_details(f"Database error: {str(e)}")
+            return ytcomments_pb2.GetCountsResponse()
