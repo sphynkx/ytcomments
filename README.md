@@ -25,7 +25,7 @@ and install MongoDB as above.
 
 
 ### DB configuration
-Modify `/etc/mongod.conf` - find and replace the string `#security:` with:
+Modify `/etc/mongod.conf` - find and replace the `#security:` section with:
 ```conf
 security:
   authorization: "disabled"
@@ -47,7 +47,7 @@ systemctl restart mongod
 ```
 Dont forget to delete `install/mongo_setup.js`.
 
-Modify `/etc/mongod.conf` again - find and replace the string `#security:` with:
+Modify `/etc/mongod.conf` again - find and replace the `security:` section with:
 ```conf
 security:
   authorization: "enabled"
@@ -61,7 +61,7 @@ systemctl restart mongod
 ### MongoDB tuning
 Optional recommendations in case then service periodically falls down. 
 
-Modify `/etc/mongod.conf`, set "storage" section so:
+Modify `/etc/mongod.conf`, set `storage` section so:
 ```conf
 storage:
   dbPath: /var/lib/mongo
@@ -72,7 +72,7 @@ storage:
     engineConfig:
       cacheSizeGB: 1.5
 ```
-Find unit file `mongod.service` (mostly in `/usr/lib/systemd/system/`). In the "[Service]" section add:
+Find unit file `mongod.service` (mostly in `/usr/lib/systemd/system/`). In the `[Service]` section add:
 ```conf
 Restart=on-failure
 RestartSec=10s
@@ -111,7 +111,7 @@ MONGO_HOST=127.0.0.1
 MONGO_PORT=27017
 MONGO_DB_NAME=yt_comments
 MONGO_USER=yt_user
-MONGO_PASSWORD=*********
+MONGO_PASSWORD=SECRET
 
 # MongoDB
 MONGO_HOST=127.0.0.1
@@ -140,7 +140,7 @@ cd /opt/ytcomments
 ## Useful commands
 
 ### Grpcurl
-Service support reflections. At first install grpcurl utility:
+Service supports reflections. At first install `grpcurl` utility:
 ```bash
 dnf install grpcurl
 ```
