@@ -101,7 +101,7 @@ chmod a+x run.sh
 cp install/ytcomments.service /etc/systemd/system
 systemctl daemon-reload
 ```
-Make sure that the `services/ytcomments/ytcomments.proto` is same as one for `YurTube` app. Otherwise run `gen_proto.sh` to regenerate protobu files.
+Make sure that the `services/ytcomments/ytcomments.proto` is same as one for `YurTube` app. Otherwise run `gen_proto.sh` to regenerate protobuf files.
 
 
 ### Service configuration
