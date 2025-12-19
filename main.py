@@ -1,5 +1,6 @@
 import asyncio
 import signal
+import time
 from grpc.aio import server as grpc_server
 from grpc_reflection.v1alpha import reflection
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +12,21 @@ from db.mongo_db import MongoDatabase
 from proto import ytcomments_pb2_grpc, ytcomments_pb2
 
 
+async def wait_mongo_ready(db, logger, timeout_sec: int = 20):
+    deadline = time.monotonic() + timeout_sec
+    last_err = None
+    while time.monotonic() < deadline:
+        try:
+            db.command('ping')
+            logger.info("Mongo ping OK")
+            return
+        except Exception as e:
+            last_err = e
+            logger.warning("Mongo ping failed: %s", e)
+            await asyncio.sleep(1)
+    raise RuntimeError(f"Mongo not ready: {last_err}")
+
+
 async def serve():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
@@ -18,9 +34,12 @@ async def serve():
     config = Config()
     logger.info("Configuration loaded.")
 
+    # future tunings for db-connection (see db/mongo_db.py)
+    # serverSelectionTimeoutMS=2000, connectTimeoutMS=2000, socketTimeoutMS=5000
     mongo_client = MongoDatabase.connect(config)
     db = mongo_client[config.MONGO_DB_NAME]
     logger.info("Connected to MongoDB.")
+    await wait_mongo_ready(db, logger, timeout_sec=20)
 
     grpc = grpc_server(ThreadPoolExecutor(max_workers=10))
     ytcomments_service = YtCommentsService(db)

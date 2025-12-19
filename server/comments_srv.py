@@ -153,7 +153,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             return ytcomments_pb2.ListTopResponse(items=pb_items, next_page_token="", total_count=total_visible)
         except PyMongoError as e:
             ##print(f"[srv] ListTop failed (PyMongoError): {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListTopResponse()
         except Exception as e:
@@ -215,7 +215,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             return ytcomments_pb2.ListRepliesResponse(items=pb_items, next_page_token="", total_count=total_visible)
         except PyMongoError as e:
             ##print(f"[srv] ListReplies failed (PyMongoError): {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListRepliesResponse()
         except Exception as e:
@@ -248,7 +248,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             return ytcomments_pb2.GetCountsResponse(top_level_count=0, total_count=0)
         except PyMongoError as e:
             ##print(f"[srv] GetCounts failed (PyMongoError): {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.GetCountsResponse()
         except Exception as e:
@@ -351,7 +351,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
 
         except PyMongoError as e:
             ##print(f"[srv] Create failed (PyMongoError): {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.CreateCommentResponse()
         except Exception as e:
@@ -429,7 +429,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             )
         except PyMongoError as e:
             ##print(f"[srv] Edit failed (PyMongoError): {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.EditCommentResponse()
         except Exception as e:
@@ -509,7 +509,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             )
         except PyMongoError as e:
             ##print(f"[srv] Delete failed (PyMongoError): {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.DeleteCommentResponse()
         except Exception as e:
@@ -567,7 +567,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             )
         except PyMongoError as e:
             ##print(f"[srv] Restore failed (PyMongoError): {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.RestoreCommentResponse()
         except Exception as e:

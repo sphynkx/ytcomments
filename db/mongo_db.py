@@ -13,6 +13,12 @@ class MongoDatabase:
                 password=config.MONGO_PASSWORD,
                 authSource=config.MONGO_AUTH_SOURCE,
                 directConnection=True,
+                #serverSelectionTimeoutMS=2000,
+                #connectTimeoutMS=2000,
+                #socketTimeoutMS=5000,
+                #retryWrites=True,
+                ## connect=False,  # lazy connection
+                #appname="ytcomments",
             )
             client[config.MONGO_DB_NAME].command("ping")
             print("Successfully connected to MongoDB!")
