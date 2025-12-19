@@ -1,0 +1,263 @@
+YTComments is a supplemental service for [YurTube engine](https://github.com/sphynkx/yurtube) to communicate with MongoDB and 
+support comments functionality of main app. Service based on gRPC+protobuf.
+
+## MongoDB install and config
+```bash
+dnf install mongodb-org
+systemctl enable mongod.service
+systemctl start mongod.service
+```
+and check is run successfuly:
+```bash
+systemctl status mongod.service
+```
+__Note__: Due to local hardware reasons this project was use MongoDB v.4.2 but will work with more new version also. To install old version you need to create repo-file `/etc/yum.repos.d/mongodb-org-4.2.repo `:
+```conf
+[mongodb-org-4.2]
+name=MongoDB Repository
+##baseurl=https://repo.mongodb.org/yum/redhat/$releasever/mongodb-org/4.2/x86_64/
+baseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/4.2/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-4.2.asc
+```
+and install MongoDB as above.
+
+
+### DB configuration
+Modify `/etc/mongod.conf` - find and replace the string `#security:` with:
+```conf
+security:
+  authorization: "disabled"
+```
+and restart service:
+```bash
+systemctl restart mongod
+```
+Next:
+```bash
+cp install/mongo_setup.js-sample install/mongo_setup.js
+```
+
+Edit `conf.py` and `install/mongo_setup.js` - set username and password for MongoDB. Apply creds to DB and restart:
+
+```
+mongo < install/mongo_setup.js
+systemctl restart mongod
+```
+Dont forget to delete `install/mongo_setup.js`.
+
+Modify `/etc/mongod.conf` again - find and replace the string `#security:` with:
+```conf
+security:
+  authorization: "enabled"
+```
+and restart service:
+```bash
+systemctl restart mongod
+```
+
+
+### MongoDB tuning
+Optional recommendations in case then service periodically falls down. 
+
+Modify `/etc/mongod.conf`, set "storage" section so:
+```conf
+storage:
+  dbPath: /var/lib/mongo
+  journal:
+    enabled: true
+#  engine:
+  wiredTiger:
+    engineConfig:
+      cacheSizeGB: 1.5
+```
+Find unit file `mongod.service` (mostly in `/usr/lib/systemd/system/`). In the "[Service]" section add:
+```conf
+Restart=on-failure
+RestartSec=10s
+StartLimitBurst=5
+StartLimitIntervalSec=60s
+OOMScoreAdjust=-900
+MemoryAccounting=true
+```
+Then copy it to `/etc/systemd/system` and update systemd configuration:
+```bash
+cp /usr/lib/systemd/system/mongod.service /etc/systemd/system
+systemctl daemon-reload
+systemctl restart mongod
+systemctl status mongod.service
+```
+
+## Service install, config and run
+```bash
+cd /opt
+git clone https://github.com/sphynkx/ytcomments
+cd ytcomments
+python3 -m venv .venv
+chmod a+x install/pipinstall.sh
+install/pipinstall.sh
+chmod a+x run.sh
+cp install/ytcomments.service /etc/systemd/system
+systemctl daemon-reload
+```
+
+
+### Service configuration
+At the `.env` fill fields:
+```conf
+# MongoDB
+MONGO_HOST=127.0.0.1
+MONGO_PORT=27017
+MONGO_DB_NAME=yt_comments
+MONGO_USER=yt_user
+MONGO_PASSWORD=*********
+
+# MongoDB
+MONGO_HOST=127.0.0.1
+MONGO_PORT=27017
+MONGO_DB_NAME=yt_comments
+MONGO_USER=yt_user
+MONGO_PASSWORD=SECRET
+MONGO_AUTH_SOURCE=yt_comments
+```
+according your configuration.
+
+
+### Run
+As systemd service:
+```bash
+systemctl restart mongod
+systemctl status mongod.service
+```
+Manually:
+```bash
+cd /opt/ytcomments
+./run.sh
+```
+
+
+## Useful commands
+
+### Grpcurl
+Service support reflections. At first install grpcurl utility:
+```bash
+dnf install grpcurl
+```
+Now useful commnads for diagnostics and health tests:
+```bash
+grpcurl -plaintext 127.0.0.1:9093 list
+grpcurl -plaintext 127.0.0.1:9093 describe ytcomments.v1.YtComments
+```
+View top comments and replies for some video:
+```bash
+grpcurl -plaintext -d '{"video_id":"cCEm3bF65lHD","page_size":10,"include_deleted":false,"sort":"NEWEST_FIRST"}' 127.0.0.1:9093 ytcomments.v1.YtComments/ListTop
+grpcurl -plaintext -d '{"parent_id":"<cid>","page_size":50,"include_deleted":false,"sort":"OLDEST_FIRST"}' 127.0.0.1:9093 ytcomments.v1.YtComments/ListReplies
+```
+
+
+### Mongosh
+Connect to MongoDB:
+```bash
+mongosh -u yt_user -p 'SECRET' --authenticationDatabase yt_comments
+```
+and:
+```javascript
+show dbs
+use yt_comments
+```
+Next - misc commands for command shell:
+```javascript
+show collections
+```
+All root documents (every document is video):
+```javascript
+db.video_comments_root.find({}, {video_id:1, "totals.comments_count_total":1}).pretty()
+```
+
+In case of `video_id` is unknown, you may print all videos with comments:
+```javascript
+db.video_comments_root.find({}, {video_id:1}).forEach(d => print(d.video_id));
+```
+
+One root document for concrete video:
+```javascript
+db.video_comments_root.findOne({video_id: "YOUR_VIDEO_ID"})
+```
+
+List of all `comment_id` and `author_name` for video:
+```javascript
+var doc = db.video_comments_root.findOne({video_id: "YOUR_VIDEO_ID"});
+if (doc && doc.comments) {
+  Object.keys(doc.comments).forEach(function(cid){
+    var c = doc.comments[cid];
+    print(cid, c.author_name, c.author_uid, c.created_at, "likes="+c.likes, "dislikes="+c.dislikes);
+  });
+} else {
+  print("No root doc or no comments");
+}
+```
+
+Print comments texts (chunk -> `local_id`):
+```javascript
+db.video_comments_chunks.find({video_id: "YOUR_VIDEO_ID"}).forEach(function(ch){
+  print("Chunk", ch._id);
+  Object.keys(ch.texts || {}).forEach(function(lid){
+    print("  ", lid, "=>", ch.texts[lid]);
+  });
+});
+```
+
+Select root document by `video_id`:
+```javascript
+db.video_comments_root.find({video_id: "VIDEO_ID"}).pretty()
+```
+
+One root document:
+```javascript
+db.video_comments_root.findOne({video_id: "VIDEO_ID"})
+```
+
+Check comment text (knowing `local_id` and `chunk_id`):
+```javascript
+let croot = db.video_comments_root.findOne({video_id: "VIDEO_ID"});
+let cref = croot.comments["COMMENT_ID"].chunk_ref;
+let chunk = db.video_comments_chunks.findOne({_id: ObjectId(cref.chunk_id)});
+chunk.texts[cref.local_id];
+```
+
+Total amount of visible comments:
+```javascript
+db.video_comments_root.aggregate([
+  {$match:{video_id:"VIDEO_ID"}},
+  {$project:{visibleCount:{
+    $size: {
+      $filter:{
+        input:{ $objectToArray:"$comments"},
+        as:"c",
+        cond:{ $eq:["$$c.v.visible", true] }
+      }
+    }
+  }}}
+])
+```
+
+Remove all comments tree (and all its chunks) for video with `video_id`:
+```javascript
+const r = db.video_comments_root.findOne({ video_id: "VIDEO_ID" });
+if (r) {
+  const ids = [];
+  for (const [cid, meta] of Object.entries(r.comments || {})) {
+    if (meta && meta.chunk_ref && meta.chunk_ref.chunk_id) {
+      ids.push(meta.chunk_ref.chunk_id);
+    }
+  }
+  // Remove root
+  db.video_comments_root.deleteOne({ video_id: "VIDEO_ID" });
+  // Remove chunks
+  ids.forEach(id => db.video_comments_chunks.deleteOne({ _id: id }));
+  print("Deleted root and", ids.length, "chunks");
+} else {
+  print("Root not found");
+}
+```
