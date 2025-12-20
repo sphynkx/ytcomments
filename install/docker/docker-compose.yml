@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   ytcomments:
     build:
@@ -9,17 +7,10 @@ services:
     ports:
       - "27017:27017"
       - "50051:50051"
-    environment:
-      DB_NAME: yt_comments
-      DB_USER: yt_user
-      DB_PASSWORD: ${MONGO_PASSWORD:-SECRET}
-      DB_HOST: 127.0.0.1
-      DB_PORT: "27017"
-      HOST: "0.0.0.0"
-      PORT: "50051"
-
     volumes:
       - mongo-data:/data/db
+    env_file:
+      - ../../.env
 
 volumes:
   mongo-data:
