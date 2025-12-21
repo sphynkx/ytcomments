@@ -1,9 +1,15 @@
-use yt_comments
+const user = process.env.MONGO_USER || "yt_user";
+const password = process.env.MONGO_PASSWORD || "SECRET";
+const dbName = process.env.MONGO_DB_NAME || "yt_comments";
 
-db.createUser(
-  {
-	user: "yt_user",
-	pwd: "SECRET",
-  roles: [ { role: "readWrite", db: "yt_comments" } ]
-  }
-)
+print(`[INFO] Creating user '${user}' for database '${dbName}'...\n`);
+
+use(dbName);
+
+db.createUser({
+  user: user,
+  pwd: password,
+  roles: [{ role: "readWrite", db: dbName }]
+});
+
+print(`[INFO] User '${user}' created successfully in database '${dbName}'!\n`);
