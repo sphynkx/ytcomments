@@ -1,5 +1,6 @@
 from pymongo.mongo_client import MongoClient
 from pymongo.errors import PyMongoError
+from utils.db_ut import ensure_replication
 import time
 
 
@@ -18,6 +19,8 @@ class MongoDatabase:
                 )
                 client[config.MONGO_DB_NAME].command("ping")
                 print("Successfully connected to MongoDB!")
+                ensure_replication(config)
+
                 return client
             except PyMongoError as e:
                 print(f"[ERROR] Failed to connect to MongoDB: {e}. Retrying in 5 seconds...")

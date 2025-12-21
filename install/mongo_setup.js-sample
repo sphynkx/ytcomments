@@ -1,19 +1,32 @@
-const user = process.env.MONGO_USER || "yt_user";
-const password = process.env.MONGO_PASSWORD || "SECRET";
 const dbName = process.env.MONGO_DB_NAME || "yt_comments";
+const appUser = process.env.MONGO_USER || "yt_user";
+const appPassword = process.env.MONGO_PASSWORD || "SECRET";
+const adminUser = process.env.MONGO_ADMIN_USER || "admin";
+const adminPassword = process.env.MONGO_ADMIN_PASSWORD || "SuperSecretPassword";
 
-print(`[INFO] Creating user '${user}' for database '${dbName}'...\n`);
+print(`[INFO] Ensuring users for database '${dbName}'...\n`);
 
-use(dbName);
-
-db.updateUser(
-  "yt_user",
+print(`[INFO] Ensuring admin user '${adminUser}' in database 'admin'...\n`);
+use("admin");
+db.createUser(
   {
+    user: adminUser,
+    pwd: adminPassword,
+    roles: [{ role: "root", db: "admin" }]
+  }
+);
+print(`[INFO] Admin user '${adminUser}' created successfully in database 'admin'.\n`);
+
+print(`[INFO] Ensuring application user '${appUser}' in database '${dbName}'...\n`);
+use(dbName);
+db.createUser(
+  {
+    user: appUser,
+    pwd: appPassword,
     roles: [
-      { role: "readWrite", db: "yt_comments" },
-      { role: "dbAdmin", db: "yt_comments" }
+      { role: "readWrite", db: dbName },
+      { role: "dbAdmin", db: dbName }
     ]
   }
 );
-
-print(`[INFO] User '${user}' created successfully in database '${dbName}'!\n`);
+print(`[INFO] Application user '${appUser}' created successfully in database '${dbName}'.\n`);

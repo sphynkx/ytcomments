@@ -15,3 +15,5 @@ class Config:
         self.MONGO_USER = os.getenv("MONGO_USER", "")
         self.MONGO_PASSWORD = os.getenv("MONGO_PASSWORD", "")
         self.MONGO_AUTH_SOURCE = os.getenv("MONGO_AUTH_SOURCE", "yt_comments")
+        self.MONGO_ADMIN_USER = os.getenv("MONGO_ADMIN_USER", "admin")
+        self.MONGO_ADMIN_PASSWORD = os.getenv("MONGO_ADMIN_PASSWORD", "SuperSecretPassword")

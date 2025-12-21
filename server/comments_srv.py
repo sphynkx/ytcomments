@@ -20,7 +20,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
         self.db = db
         logging.basicConfig(level=logging.DEBUG, format="[%(levelname)s] %(message)s")
         self.logger = logging.getLogger("YtCommentsService")
-        ##print("[srv] YtCommentsService initialized")
+        print("[srv] YtCommentsService initialized")
 
     # ----- Helpers: legacy root/chunks -----
 
@@ -28,14 +28,14 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
         try:
             return self.db.video_comments_root.find_one({"video_id": video_id})
         except Exception as e:
-            ##print(f"[srv] legacy_root error: {e}")
+            print(f"[srv] legacy_root error: {e}")
             return None
 
     def _legacy_root_by_child(self, parent_id: str):
         try:
             return self.db.video_comments_root.find_one({f"comments.{parent_id}": {"$exists": True}})
         except Exception as e:
-            ##print(f"[srv] legacy_root_by_child error: {e}")
+            print(f"[srv] legacy_root_by_child error: {e}")
             return None
 
     def _legacy_text(self, chunk_id: str, local_id: str) -> str:
@@ -95,16 +95,16 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
     # ----- RPCs: read -----
 
     async def ListTop(self, request, context):
-        ##print(f"[srv] ListTop: req video_id={request.video_id} page_size={request.page_size} include_deleted={request.include_deleted} sort={request.sort}")
+        print(f"[srv] ListTop: req video_id={request.video_id} page_size={request.page_size} include_deleted={request.include_deleted} sort={request.sort}")
         try:
             root = self._legacy_root(request.video_id)
             if not root:
-                ##print("[srv] ListTop: legacy root not found, returning empty")
+                print("[srv] ListTop: legacy root not found, returning empty")
                 return ytcomments_pb2.ListTopResponse(items=[], next_page_token="", total_count=0)
 
             comments_map = root.get("comments", {}) or {}
             root_ids = self._legacy_roots_ids(root)
-            ##print(f"[srv] ListTop: legacy root found, comments_map={len(comments_map)} roots={len(root_ids)}")
+            print(f"[srv] ListTop: legacy root found, comments_map={len(comments_map)} roots={len(root_ids)}")
 
             items = []
             for cid in root_ids:
@@ -148,31 +148,31 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             pb_items = [t[1] for t in items]
 
             total_visible = sum(1 for cid in root_ids if self._visible(comments_map.get(cid) or {}, request.include_deleted))
-            ##print(f"[srv] ListTop: items={len(pb_items)} total_visible_roots={total_visible}")
+            print(f"[srv] ListTop: items={len(pb_items)} total_visible_roots={total_visible}")
 
             return ytcomments_pb2.ListTopResponse(items=pb_items, next_page_token="", total_count=total_visible)
         except PyMongoError as e:
-            ##print(f"[srv] ListTop failed (PyMongoError): {e}")
+            print(f"[srv] ListTop failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListTopResponse()
         except Exception as e:
-            ##print(f"[srv] ListTop unexpected error: {e}")
+            print(f"[srv] ListTop unexpected error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return ytcomments_pb2.ListTopResponse()
 
     async def ListReplies(self, request, context):
-        ##print(f"[srv] ListReplies: req parent_id={request.parent_id} page_size={request.page_size} include_deleted={request.include_deleted} sort={request.sort} page_token={request.page_token!r}")
+        print(f"[srv] ListReplies: req parent_id={request.parent_id} page_size={request.page_size} include_deleted={request.include_deleted} sort={request.sort} page_token={request.page_token!r}")
         try:
             root = self._legacy_root_by_child(request.parent_id)
             if not root:
-                ##print("[srv] ListReplies: legacy root by parent not found, return empty")
+                print("[srv] ListReplies: legacy root by parent not found, return empty")
                 return ytcomments_pb2.ListRepliesResponse(items=[], next_page_token="", total_count=0)
 
             comments_map = root.get("comments", {}) or {}
             child_ids = self._legacy_children_ids(root, request.parent_id)
-            ##print(f"[srv] ListReplies: legacy children for {request.parent_id}: {len(child_ids)}")
+            print(f"[srv] ListReplies: legacy children for {request.parent_id}: {len(child_ids)}")
 
             pairs = []
             for cid in child_ids:
@@ -210,22 +210,22 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             pb_items = [t[2] for t in pairs]
 
             total_visible = sum(1 for cid in child_ids if self._visible(comments_map.get(cid) or {}, request.include_deleted))
-            ##print(f"[srv] ListReplies: items={len(pb_items)} total_visible={total_visible}")
+            print(f"[srv] ListReplies: items={len(pb_items)} total_visible={total_visible}")
 
             return ytcomments_pb2.ListRepliesResponse(items=pb_items, next_page_token="", total_count=total_visible)
         except PyMongoError as e:
-            ##print(f"[srv] ListReplies failed (PyMongoError): {e}")
+            print(f"[srv] ListReplies failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.ListRepliesResponse()
         except Exception as e:
-            ##print(f"[srv] ListReplies unexpected error: {e}")
+            print(f"[srv] ListReplies unexpected error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return ytcomments_pb2.ListRepliesResponse()
 
     async def GetCounts(self, request, context):
-        ##print(f"[srv] GetCounts: req video_id={request.video_id} is_moderator={getattr(request.ctx, 'is_moderator', False)}")
+        print(f"[srv] GetCounts: req video_id={request.video_id} is_moderator={getattr(request.ctx, 'is_moderator', False)}")
         try:
             root = self._legacy_root(request.video_id)
             if root:
@@ -238,21 +238,21 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
 
                 top_level = [cid for cid in roots if _vis(comments_map.get(cid) or {})]
                 all_visible = [cid for cid, m in comments_map.items() if _vis(m)]
-                ##print(f"[srv] GetCounts (legacy): top_level={len(top_level)} total={len(all_visible)}")
+                print(f"[srv] GetCounts (legacy): top_level={len(top_level)} total={len(all_visible)}")
                 return ytcomments_pb2.GetCountsResponse(
                     top_level_count=len(top_level),
                     total_count=len(all_visible)
                 )
 
-            ##print("[srv] GetCounts: legacy root not found")
+            print("[srv] GetCounts: legacy root not found")
             return ytcomments_pb2.GetCountsResponse(top_level_count=0, total_count=0)
         except PyMongoError as e:
-            ##print(f"[srv] GetCounts failed (PyMongoError): {e}")
+            print(f"[srv] GetCounts failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.GetCountsResponse()
         except Exception as e:
-            ##print(f"[srv] GetCounts unexpected error: {e}")
+            print(f"[srv] GetCounts unexpected error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return ytcomments_pb2.GetCountsResponse()
@@ -260,12 +260,12 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
     # ----- RPCs: write -----
 
     async def Create(self, request, context):
-        ##print(f"[srv] Create: req video_id={request.video_id} parent_id={request.parent_id!r} user_uid={getattr(request.ctx, 'user_uid', '')}")
+        print(f"[srv] Create: req video_id={request.video_id} parent_id={request.parent_id!r} user_uid={getattr(request.ctx, 'user_uid', '')}")
         try:
             now = int(time.time())
             root = self._legacy_root(request.video_id)
             if not root:
-                ##print("[srv] Create: legacy root not found")
+                print("[srv] Create: legacy root not found")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Video not found in legacy root.")
                 return ytcomments_pb2.CreateCommentResponse()
@@ -330,7 +330,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                     {"$push": {"tree_aux.depth_index.0": cid}},
                 )
 
-            ##print(f"[srv] Create: inserted_id={cid}")
+            print(f"[srv] Create: inserted_id={cid}")
             return ytcomments_pb2.CreateCommentResponse(
                 comment=ytcomments_pb2.Comment(
                     id=cid,
@@ -350,23 +350,23 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             )
 
         except PyMongoError as e:
-            ##print(f"[srv] Create failed (PyMongoError): {e}")
+            print(f"[srv] Create failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.CreateCommentResponse()
         except Exception as e:
-            ##print(f"[srv] Create unexpected error: {e}")
+            print(f"[srv] Create unexpected error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return ytcomments_pb2.CreateCommentResponse()
 
     async def Edit(self, request, context):
-        ##print(f"[srv] Edit: req comment_id={request.comment_id}")
+        print(f"[srv] Edit: req comment_id={request.comment_id}")
         try:
             # find legacy root by comment id
             root = self._legacy_root_by_child(request.comment_id)
             if not root:
-                ##print("[srv] Edit: legacy root not found by comment")
+                print("[srv] Edit: legacy root not found by comment")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.EditCommentResponse()
@@ -374,13 +374,13 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             comments_map = root.get("comments", {}) or {}
             meta = comments_map.get(request.comment_id)
             if not meta:
-                ##print("[srv] Edit: comment meta missing")
+                print("[srv] Edit: comment meta missing")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.EditCommentResponse()
 
             if not meta.get("visible", True):
-                ##print("[srv] Edit: comment is deleted")
+                print("[srv] Edit: comment is deleted")
                 context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
                 context.set_details("Cannot edit a deleted comment.")
                 return ytcomments_pb2.EditCommentResponse()
@@ -390,7 +390,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             chunk_id = cref.get("chunk_id")
             local_id = cref.get("local_id")
             if not chunk_id or not local_id:
-                ##print("[srv] Edit: chunk_ref missing")
+                print("[srv] Edit: chunk_ref missing")
                 context.set_code(grpc.StatusCode.UNKNOWN)
                 context.set_details("Chunk reference missing.")
                 return ytcomments_pb2.EditCommentResponse()
@@ -408,7 +408,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 {"$set": {f"comments.{request.comment_id}.edited": True, f"comments.{request.comment_id}.updated_at": now}}
             )
 
-            ##print(f"[srv] Edit: updated_id={request.comment_id}")
+            print(f"[srv] Edit: updated_id={request.comment_id}")
             updated_meta = self._legacy_root_by_child(request.comment_id).get("comments", {}).get(request.comment_id, {})
             return ytcomments_pb2.EditCommentResponse(
                 comment=ytcomments_pb2.Comment(
@@ -428,22 +428,22 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 )
             )
         except PyMongoError as e:
-            ##print(f"[srv] Edit failed (PyMongoError): {e}")
+            print(f"[srv] Edit failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.EditCommentResponse()
         except Exception as e:
-            ##print(f"[srv] Edit unexpected error: {e}")
+            print(f"[srv] Edit unexpected error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return ytcomments_pb2.EditCommentResponse()
 
     async def Delete(self, request, context):
-        ##print(f"[srv] Delete: req comment_id={request.comment_id} hard_delete={request.hard_delete}")
+        print(f"[srv] Delete: req comment_id={request.comment_id} hard_delete={request.hard_delete}")
         try:
             root = self._legacy_root_by_child(request.comment_id)
             if not root:
-                ##print("[srv] Delete: legacy root not found by comment")
+                print("[srv] Delete: legacy root not found by comment")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.DeleteCommentResponse()
@@ -483,7 +483,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
             # return current meta
             updated_root = self._legacy_root_by_child(request.comment_id)
             updated_meta = (updated_root or {}).get("comments", {}).get(request.comment_id, {})
-            ##print(f"[srv] Delete: done id={request.comment_id}")
+            print(f"[srv] Delete: done id={request.comment_id}")
             return ytcomments_pb2.DeleteCommentResponse(
                 comment=ytcomments_pb2.Comment(
                     id=str(request.comment_id),
@@ -508,22 +508,22 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 )
             )
         except PyMongoError as e:
-            ##print(f"[srv] Delete failed (PyMongoError): {e}")
+            print(f"[srv] Delete failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.DeleteCommentResponse()
         except Exception as e:
-            ##print(f"[srv] Delete unexpected error: {e}")
+            print(f"[srv] Delete unexpected error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return ytcomments_pb2.DeleteCommentResponse()
 
     async def Restore(self, request, context):
-        ##print(f"[srv] Restore: req comment_id={request.comment_id}")
+        print(f"[srv] Restore: req comment_id={request.comment_id}")
         try:
             root = self._legacy_root_by_child(request.comment_id)
             if not root:
-                ##print("[srv] Restore: legacy root not found by comment")
+                print("[srv] Restore: legacy root not found by comment")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Comment not found.")
                 return ytcomments_pb2.RestoreCommentResponse()
@@ -541,7 +541,7 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
 
             updated_root = self._legacy_root_by_child(request.comment_id)
             updated_meta = (updated_root or {}).get("comments", {}).get(request.comment_id, {})
-            ##print(f"[srv] Restore: done id={request.comment_id}")
+            print(f"[srv] Restore: done id={request.comment_id}")
             return ytcomments_pb2.RestoreCommentResponse(
                 comment=ytcomments_pb2.Comment(
                     id=str(request.comment_id),
@@ -566,12 +566,12 @@ class YtCommentsService(ytcomments_pb2_grpc.YtCommentsServicer):
                 )
             )
         except PyMongoError as e:
-            ##print(f"[srv] Restore failed (PyMongoError): {e}")
+            print(f"[srv] Restore failed (PyMongoError): {e}")
             context.set_code(grpc.StatusCode.UNAVAILABLE)
             context.set_details(f"Database error: {str(e)}")
             return ytcomments_pb2.RestoreCommentResponse()
         except Exception as e:
-            ##print(f"[srv] Restore unexpected error: {e}")
+            print(f"[srv] Restore unexpected error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return ytcomments_pb2.RestoreCommentResponse()
