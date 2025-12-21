@@ -6,10 +6,14 @@ print(`[INFO] Creating user '${user}' for database '${dbName}'...\n`);
 
 use(dbName);
 
-db.createUser({
-  user: user,
-  pwd: password,
-  roles: [{ role: "readWrite", db: dbName }]
-});
+db.updateUser(
+  "yt_user",
+  {
+    roles: [
+      { role: "readWrite", db: "yt_comments" },
+      { role: "dbAdmin", db: "yt_comments" }
+    ]
+  }
+);
 
 print(`[INFO] User '${user}' created successfully in database '${dbName}'!\n`);
