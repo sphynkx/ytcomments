@@ -37,13 +37,15 @@ systemctl restart mongod
 Next:
 ```bash
 cp install/mongo_setup.js-sample install/mongo_setup.js
+mkdir -p /etc/mongodb
+openssl rand -base64 756 > /etc/mongodb/keyfile
+chown mongod:mongod /etc/mongodb/keyfile
+chmod 600 /etc/mongodb/keyfile
 ```
 
 Edit `conf.py` and `install/mongo_setup.js` - set username and password for MongoDB. Apply creds to DB and restart:
-
 ```
 mongo < install/mongo_setup.js
-systemctl restart mongod
 ```
 Dont forget to delete `install/mongo_setup.js`.
 
@@ -51,10 +53,12 @@ Modify `/etc/mongod.conf` again - find and replace the `security:` section with:
 ```conf
 security:
   authorization: "enabled"
+  keyFile: /etc/mongodb/keyfile
 ```
-and restart service:
+and restart service and check health:
 ```bash
 systemctl restart mongod
+mongosh -u yt_user -p 'SECRET' --authenticationDatabase yt_comments
 ```
 
 
@@ -105,24 +109,10 @@ Make sure that the `services/ytcomments/ytcomments.proto` is same as one for `Yu
 
 
 ### Service configuration
-At the `.env` fill fields:
-```conf
-# MongoDB
-MONGO_HOST=127.0.0.1
-MONGO_PORT=27017
-MONGO_DB_NAME=yt_comments
-MONGO_USER=yt_user
-MONGO_PASSWORD=SECRET
-
-# MongoDB
-MONGO_HOST=127.0.0.1
-MONGO_PORT=27017
-MONGO_DB_NAME=yt_comments
-MONGO_USER=yt_user
-MONGO_PASSWORD=SECRET
-MONGO_AUTH_SOURCE=yt_comments
+```bash
+cp install/.env-sample .env
 ```
-according your configuration.
+Modify `.env` - at least set your passwords.
 
 
 ### Run
@@ -137,6 +127,57 @@ cd /opt/ytcomments
 ./run.sh
 ```
 
+
+## Docker install
+```bash
+git clone https://github.com/sphynkx/ytcomments
+cd ytcomments
+/install/docker
+cp install/mongo_setup.js-sample install/mongo_setup.js
+cp install/.env-sample .env
+```
+You need to modify some files. 
+
+At `install/mongo_setup.js` set your passwords for __yt_user__ (must be same as for mongodb user, communicating with YurTube app) and __admin__. If you will replicate DB between different host you must set the same creds for the both users for all involved hosts.
+
+Modify `.env` file at the root of app, set appropriate params to connect to DB.
+
+In above section "DB configuration" there was command to create `/etc/mongodb/keyfile`. You need copy this file from `/etc/mongodb/keyfile` of server where it was created and place into your local `install/docker`. after that - run container building:
+```bash
+cd install/docker
+docker-compose up -d --build
+docker ps
+```
+If container is up - check heath:
+```bash
+telnet 127.0..0.1 27017
+telnet 127.0..0.1 9093
+mongosh -u yt_user -p 'SECRET' --authenticationDatabase yt_comments
+```
+
+
+### Troubleshooting
+Check build process:
+```bash
+docker-compose logs -f
+```
+If ports are unavailable - go into container:
+```bash
+docker exec -it ytcomments_service bash
+ps aux | grep mongo
+less /data/db/mongod.log
+less /data/db/debug_replica_init.log
+mongod --config /etc/mongod.conf 2>&1>/dev/null &
+```
+etc..
+
+Try to rebuild container:
+```bash
+docker-compose down
+docker builder prune -a -f
+volume rm docker_mongo-data
+docker-compose up -d --build
+```
 
 ## Useful commands
 
