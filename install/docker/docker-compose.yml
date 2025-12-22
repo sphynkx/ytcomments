@@ -6,7 +6,7 @@ services:
     container_name: ytcomments_service
     ports:
       - "27017:27017"
-      - "50051:50051"
+      - "9093:9093"
     volumes:
       - mongo-data:/data/db
     env_file:
