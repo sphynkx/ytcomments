@@ -303,3 +303,215 @@ if (r) {
   print("Root not found");
 }
 ```
+
+
+## Databases replication
+To syncronize data between different service instances you may use replication mechanism.
+
+Assumed that at all sides the MongoDB has been previously configured correctly, users have been created (see `install/mongo_setup.js-sample`) and a working database `yt_comments` has been created.
+
+Replication occurs from the main service instance (role __PRIMARY__, let's call it a side __FROM__) to others (role __SECONDARY__, let's call them a side __TO__) that require updating.
+
+__NOTE__: Replication process requires close versions of MongoDB at all sides - ±1 between major version number.
+
+
+### Preparations on "FROM" side
+First, you need to prepare and test the configuration on the __FROM__ side. 
+
+Check the `Replica configuration` section in the `.env` file - uncomment and configure options this way:
+```conf
+MONGO_ROLE=PRIMARY
+REPLICA_SET_NAME=ytcommentsReplicaSet
+MONGO_HOSTS=TO_side1:27017,TO_side2:27017
+```
+
+The configuration in `/etc/mongodb.conf` should contain the following options:
+```conf
+security:
+  authorization: "enabled"
+  keyFile: /etc/mongodb/keyfile
+
+replication:
+  replSetName: "ytcommentsReplicaSet"
+```
+A pre-generated `/etc/mongodb/keyfile` must be present on the system. If it is missing or needs to be regenerated, this can be done with the command:```bash
+openssl rand -base64 756 > /etc/mongodb/keyfile
+chown mongod:mongod /etc/mongodb/keyfile
+chmod 600 /etc/mongodb/keyfile
+```
+After that, the updated `keyfile` must be copied to all __TO__ sides and placed there in `/etc/mongodb/keyfile`. Also set access rights and owner to this for on all __TO__ sides.
+
+__Important__: Make sure each MongoDB node uses the same `/etc/mongodb/keyfile` file. Configuration errors can cause nodes to fail to connect!!
+
+Restart MongoDB, check its functionality and port availability (especially if the replication options were enabled in the configuration):
+```bash
+systemctl restart mongod
+systemctl status mongod
+ps aux | grep mongo
+telnet 127.0.0.1 27017
+mongosh -u yt_user -p 'SECRET' --authenticationDatabase yt_comments
+```
+
+MongoDB may become unavailable after enabling replication. Check the logs for replication messages:
+```bash
+cat /var/log/mongodb/mongod.log | grep "Replication"
+```
+ The database may have entered recovery mode, in which case you'll need to switch it to replication mode:
+```bash
+mongosh -u admin -p 'SuperSecretPassword' --authenticationDatabase admin
+```
+and then:
+```javascript
+rs.initiate({
+  _id: "ytcommentsReplicaSet",
+  members: [
+    { _id: 0, host: "127.0.0.1:27017" }
+  ]
+})
+
+rs.status()
+```
+Make sure the server shows up as __PRIMARY__ and restart MongoDB again.
+
+If you see "state: RECOVERING" - probably you forgot set `replication` section in `/etc/mongodb.conf`. Configure it as described above.
+
+It is also advisable to immediately check the availability of all __TO__ sides:
+```bash
+mongosh --host TO_side_IP --port 27017 -u admin -p 'SuperSecretPassword' --authenticationDatabase admin
+```
+
+
+### Preparations on "TO" side
+The receiving sides also need to carry out similar checks and preparations.
+
+Make sure that the `keyfile` was copied from __FROM__ side and placed correctly on the __TO__ side (as `/etc/mongodb/keyfile`).
+
+Make similar changes to the configuration files. In `/etc/mongodb.conf`, make the same changes. In the `env` file:
+```conf
+MONGO_ROLE=SECONDARY
+REPLICA_SET_NAME=ytcommentsReplicaSet
+MONGO_HOSTS=FROM_side2:27017
+```
+Restart MongoDB and make sure that everything is OK.
+
+Check local database on __TO__ side. Connect to it:
+```bash
+mongosh -u admin -p 'SuperSecretPassword' --authenticationDatabase admin
+```
+Check database - collection must exist and be empty:
+```javascript
+use yt_comments
+show collections
+```
+
+Potential problems with MongoDB are resolved in a similar manner to that described above.
+
+Also check the availability of the __FROM__ side:
+```bash
+mongosh --host FROM_side_IP --port 27017 -u admin -p 'SuperSecretPassword' --authenticationDatabase admin
+```
+
+__Note__: Replicating data on the `SECONDARY` nodes may take time. If you want to check the data on them, run:
+```javascript
+db.getMongo().setSecondaryOk()
+```
+
+
+### Perform replication process
+Now need to add __TO__ sides to replica set. Go to __FROM__ side ( __PRIMARY__ ):
+```bash
+mongosh -u admin -p 'SuperSecretPassword' --authenticationDatabase admin
+```
+and add __TO__ side:
+```javascript
+rs.add("TO_sideIP:27017")
+rs.status()
+```
+You could see it as __SECONDARY__.
+
+__Note__: MongoDB in __SECONDARY__ state may not be available for read. In case of this issue try to call:
+```javascript
+db.getMongo().setSecondaryOk()
+```
+
+Connect to __TO__ side:
+```bash
+mongosh --host 192.168.7.116 --port 27017 -u admin -p 'SECRET' --authenticationDatabase admin
+```
+and:
+```javascript
+rs.status()
+```
+You may see JSON with two members, with states 'PRIMARY' and 'SECONDARY'. If so - the replication process is on. Need to wait.
+
+Otherwise you may see something as:
+```javascript
+rs.status()
+MongoServerError[NotYetInitialized]: no replset config has been received
+```
+This means that the command for synchronization has not yet arrived from __PRIMARY__ side.
+
+In this case you need to wait some minutes, check network availability of __FROM__ side - login into shell and ping the __FROM__.
+
+Also try to reinitialize replication process. At the __FROM__ side (on __PRIMARY__ - don't get confused!!) login as mongo-admin and run in the mongodb shell:
+```javascript
+rs.reconfig({
+  _id: "ytcommentsReplicaSet",
+  members: [
+    { _id: 0, host: "FROM_side_IP:27017" },
+    { _id: 1, host: "TO_side_IP:27017" }
+  ]
+})
+```
+
+Then relogin to __TO__ side as admin and check status again. You may see JSON with states as mentioned above. Also check the "health" for all members in this JSON - it have to be __1__.
+After replication check:
+```javascript
+use yt_comments
+show collections
+```
+You may see replicated collections:
+* video_comments_chunks
+* video_comments_root
+
+Now try to view content:
+```javascript
+db.getMongo().setSecondaryOk()
+use yt_comments
+db.video_comments_root.findOne()
+```
+You may see some of documents in JSON format.
+
+Monitor replication progress:
+```javascript
+rs.printReplicationInfo() // At finish oplog for all nodes will have same values
+rs.printSecondaryReplicationInfo() // At finish replLag will be 0 secs
+rs.status() // At finish optime will be same for all nodes (in members), all have "health: 1"
+```
+
+Finish replication. Login as mongo-admin on __FROM__ side ( __PRIMARY__ ) and run:
+```javascript
+rs.stepDown()
+```
+
+After switching roles ( __rs.stepDown__ ), ensure that:
+1. The new __PRIMARY__ node is active:
+```javascript
+rs.status()
+```
+
+On all nodes check counts:
+```javascript
+use yt_comments
+db.video_comments_root.find().count()
+```
+Counts must be same.
+
+
+### Switch app to new instance
+Now switch YurTube app to another service instance. In YurTube's `.env` modify `YTCOMMENTS_ADDR` - set IP of __TO__ side. Restart app and (optionally) stop local `ytcomments` service:
+```
+systemctl restart yurtube
+systemctl stop ytcomments
+```
+Test some page with comments and make sure that comments are received via new service instance.
