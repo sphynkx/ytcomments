@@ -3,7 +3,7 @@ services:
     build:
       context: ../../
       dockerfile: install/docker/Dockerfile
-    container_name: ytcomments_TEST
+    container_name: ytcomments_service
     ports:
       - "27017:27017"
       - "50051:50051"
