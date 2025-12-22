@@ -3,6 +3,7 @@ const appUser = process.env.MONGO_USER || "yt_user";
 const appPassword = process.env.MONGO_PASSWORD || "SECRET";
 const adminUser = process.env.MONGO_ADMIN_USER || "admin";
 const adminPassword = process.env.MONGO_ADMIN_PASSWORD || "SuperSecretPassword";
+const replSetName = process.env.REPLICA_SET_NAME;
 
 print(`[INFO] Ensuring users for database '${dbName}'...\n`);
 
@@ -30,3 +31,27 @@ db.createUser(
   }
 );
 print(`[INFO] Application user '${appUser}' created successfully in database '${dbName}'.\n`);
+
+// Check replication init
+if (replSetName) {
+    print(`[INFO] Checking and initializing replica set '${replSetName}'...\n`);
+    use("admin");
+    try {
+        const status = rs.status();
+        print(`[INFO] Replica set '${replSetName}' already initialized. Status: ${status.ok}\n`);
+    } catch (err) {
+        if (err.codeName === "NotYetInitialized") {
+            print(`[INFO] Replica set '${replSetName}' not initialized. Initializing...\n`);
+            rs.initiate({
+                _id: replSetName,
+                members: [
+                    { _id: 0, host: "127.0.0.1:27017" }
+                ]
+            });
+            print(`[INFO] Replica set '${replSetName}' initialized successfully.\n`);
+        } else {
+            print(`[ERROR] Failed to check or initialize replica set: ${err.codeName}\n`);
+        }
+    }
+}
+

@@ -13,6 +13,7 @@ __pycache__/
 mongo_setup.js
 install/mongo_setup.js
 install/docker/mongo_setup.js
+install/docker/keyfile
 
 .venv/
 .env
