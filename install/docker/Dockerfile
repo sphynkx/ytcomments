@@ -1,9 +1,9 @@
-FROM fedora:40
+FROM fedora:39
 
 COPY install/docker/mongodb.repo /etc/yum.repos.d/mongodb.repo
 
-RUN rpm --import https://www.mongodb.org/static/pgp/server-7.0.asc && \
-    dnf install -y mongodb-org && \
+RUN dnf install -y mongodb-org && \
+dnf install -y https://github.com/mongodb-js/mongosh/releases/download/v2.5.2/mongodb-mongosh-shared-openssl11-2.5.2.x86_64.rpm && \
     dnf install -y python3 python3-pip git nc psmisc procps-ng mc net-tools && \
     dnf clean all
 
