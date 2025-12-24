@@ -507,6 +507,13 @@ db.video_comments_root.find().count()
 ```
 Counts must be same.
 
+After finish of replication process - disable replication mode for actual MongoDB. Modify `/etc/mongod.conf` - comment out replica perems:
+```conf
+# replication:
+#   replSetName: "ytcommentsReplicaSet"
+```
+
+
 
 ### Switch app to new instance
 Now switch YurTube app to another service instance. In YurTube's `.env` modify `YTCOMMENTS_ADDR` - set IP of __TO__ side. Restart app and (optionally) stop local `ytcomments` service:
