@@ -103,7 +103,6 @@ chmod a+x install/pipinstall.sh
 install/pipinstall.sh
 chmod a+x run.sh
 cp install/ytcomments.service /etc/systemd/system
-systemctl daemon-reload
 ```
 Make sure that the `services/ytcomments/ytcomments.proto` is same as one for `YurTube` app. Otherwise run `gen_proto.sh` to regenerate protobuf files.
 
@@ -118,8 +117,9 @@ Modify `.env` - at least set your passwords.
 ### Run
 As systemd service:
 ```bash
-systemctl restart mongod
-systemctl status mongod.service
+systemctl daemon-reload
+systemctl restart ytcomments
+systemctl status ytcomments
 ```
 Manually:
 ```bash

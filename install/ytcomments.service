@@ -3,6 +3,7 @@ Description=YtComments gRPC Service
 After=network.target network-online.target mongod.service
 Wants=network-online.target
 Requires=mongod.service
+After=mongod.service
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
