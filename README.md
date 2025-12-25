@@ -507,12 +507,12 @@ db.video_comments_root.find().count()
 ```
 Counts must be same.
 
-After finish of replication process - disable replication mode for actual MongoDB. Modify `/etc/mongod.conf` - comment out replica perems:
+After finish of replication process - disable replication mode for MongoDB on __TO__ side. Modify `/etc/mongod.conf` - comment out replica perems:
 ```conf
 # replication:
 #   replSetName: "ytcommentsReplicaSet"
 ```
-
+and restart MongoDB.
 
 
 ### Switch app to new instance
