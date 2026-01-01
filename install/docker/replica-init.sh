@@ -62,8 +62,13 @@ while ! nc -z 127.0.0.1 27017; do
 done
 log "[DEBUG] MongoDB restart complete and available."
 
+
 # Replication: check/init
-if [[ "$MONGO_ROLE" == "PRIMARY" ]]; then
+ROLE="${MONGO_ROLE:-}"
+
+if [[ -z "$ROLE" ]]; then
+    log "[INFO] MONGO_ROLE is not set. Skipping replica set configuration."
+elif [[ "$ROLE" == "PRIMARY" ]]; then
     log "[INFO] Configuring this node as PRIMARY for replica set '${REPLICA_SET_NAME}'..."
     mongosh --eval "
         try {
@@ -77,7 +82,7 @@ if [[ "$MONGO_ROLE" == "PRIMARY" ]]; then
             }
         }
     " >> "$LOGFILE" 2>&1
-elif [[ "$MONGO_ROLE" == "SECONDARY" ]]; then
+elif [[ "$ROLE" == "SECONDARY" ]]; then
     log "[INFO] Configuring this node as SECONDARY. Connecting to PRIMARY..."
     PRIMARY_HOST=$(echo "$MONGO_HOSTS" | cut -d ',' -f1)
 
