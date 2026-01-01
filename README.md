@@ -175,7 +175,7 @@ Try to rebuild container:
 ```bash
 docker-compose down
 docker builder prune -a -f
-volume rm docker_mongo-data
+docker volume rm docker_mongo-data
 docker-compose up -d --build
 ```
 
