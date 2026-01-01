@@ -7,9 +7,13 @@ from concurrent.futures import ThreadPoolExecutor
 import logging
 
 from server.comments_srv import YtCommentsService
+from services.info_srv import InfoService
 from config.main_cfg import Config
 from db.mongo_db import MongoDatabase
 from proto import ytcomments_pb2_grpc, ytcomments_pb2
+from grpc.health.v1 import health_pb2, health_pb2_grpc
+from grpc.health.v1.health import HealthServicer
+from proto import info_pb2_grpc, info_pb2
 
 
 async def wait_mongo_ready(db, logger, timeout_sec: int = 20):
@@ -45,9 +49,25 @@ async def serve():
     ytcomments_service = YtCommentsService(db)
     ytcomments_pb2_grpc.add_YtCommentsServicer_to_server(ytcomments_service, grpc)
 
+    health_servicer = HealthServicer()
+    # Set global (empty service-name) status to SERVING for admin checks
+    health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
+    health_pb2_grpc.add_HealthServicer_to_server(health_servicer, grpc)
+
+    info_service = InfoService(
+        app_name="YurTube Comments Service",
+        host=f"{config.YTCOMMENTS_HOST}:{config.YTCOMMENTS_PORT}",
+        version="1.0.0",
+        build_hash="abc123",
+        build_time="2025-12-30T12:00:00Z",
+    )
+    info_pb2_grpc.add_InfoServicer_to_server(info_service, grpc)
+
     reflection.enable_server_reflection(
         service_names=[
             ytcomments_pb2.DESCRIPTOR.services_by_name['YtComments'].full_name,
+            info_pb2.DESCRIPTOR.services_by_name['Info'].full_name,
+            health_pb2.DESCRIPTOR.services_by_name['Health'].full_name,
             reflection.SERVICE_NAME,
         ],
         server=grpc,
