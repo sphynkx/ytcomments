@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Generate stubs from ytcomments.proto
-# Make sure that ytcomments is identical to one from ytcomments service!!
+# Make sure that ytcomments.proto is identical to one from yurtube service!!
 
 cd "$(dirname "$0")"
 
