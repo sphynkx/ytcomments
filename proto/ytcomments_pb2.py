@@ -24,15 +24,15 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10ytcomments.proto\x12\rytcomments.v1\"\x93\x01\n\x0bUserContext\x12\x10\n\x08user_uid\x18\x01 \x01(\t\x12\x10\n\x08username\x18\x02 \x01(\t\x12\x12\n\nchannel_id\x18\x03 \x01(\t\x12\x16\n\x0eis_video_owner\x18\x04 \x01(\x08\x12\x14\n\x0cis_moderator\x18\x05 \x01(\x08\x12\n\n\x02ip\x18\x06 \x01(\t\x12\x12\n\nuser_agent\x18\x07 \x01(\t\"\xfe\x01\n\x07\x43omment\x12\n\n\x02id\x18\x01 \x01(\t\x12\x10\n\x08video_id\x18\x02 \x01(\t\x12\x11\n\tparent_id\x18\x03 \x01(\t\x12\x13\n\x0b\x63ontent_raw\x18\x04 \x01(\t\x12\x14\n\x0c\x63ontent_html\x18\x05 \x01(\t\x12\x12\n\nis_deleted\x18\x06 \x01(\x08\x12\x0e\n\x06\x65\x64ited\x18\x07 \x01(\x08\x12\x12\n\ncreated_at\x18\x08 \x01(\x03\x12\x12\n\nupdated_at\x18\t \x01(\x03\x12\x10\n\x08user_uid\x18\n \x01(\t\x12\x10\n\x08username\x18\x0b \x01(\t\x12\x12\n\nchannel_id\x18\x0c \x01(\t\x12\x13\n\x0breply_count\x18\r \x01(\x05\"\xb3\x01\n\x0eListTopRequest\x12\x10\n\x08video_id\x18\x01 \x01(\t\x12\x11\n\tpage_size\x18\x02 \x01(\x05\x12\x12\n\npage_token\x18\x03 \x01(\t\x12&\n\x04sort\x18\x04 \x01(\x0e\x32\x18.ytcomments.v1.SortOrder\x12\x17\n\x0finclude_deleted\x18\x05 \x01(\x08\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"f\n\x0fListTopResponse\x12%\n\x05items\x18\x01 \x03(\x0b\x32\x16.ytcomments.v1.Comment\x12\x17\n\x0fnext_page_token\x18\x02 \x01(\t\x12\x13\n\x0btotal_count\x18\x03 \x01(\x05\"\xb8\x01\n\x12ListRepliesRequest\x12\x11\n\tparent_id\x18\x01 \x01(\t\x12\x11\n\tpage_size\x18\x02 \x01(\x05\x12\x12\n\npage_token\x18\x03 \x01(\t\x12&\n\x04sort\x18\x04 \x01(\x0e\x32\x18.ytcomments.v1.SortOrder\x12\x17\n\x0finclude_deleted\x18\x05 \x01(\x08\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"j\n\x13ListRepliesResponse\x12%\n\x05items\x18\x01 \x03(\x0b\x32\x16.ytcomments.v1.Comment\x12\x17\n\x0fnext_page_token\x18\x02 \x01(\t\x12\x13\n\x0btotal_count\x18\x03 \x01(\x05\"\x92\x01\n\x14\x43reateCommentRequest\x12\x10\n\x08video_id\x18\x01 \x01(\t\x12\x11\n\tparent_id\x18\x02 \x01(\t\x12\x13\n\x0b\x63ontent_raw\x18\x03 \x01(\t\x12\x17\n\x0fidempotency_key\x18\x04 \x01(\t\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"@\n\x15\x43reateCommentResponse\x12\'\n\x07\x63omment\x18\x01 \x01(\x0b\x32\x16.ytcomments.v1.Comment\"f\n\x12\x45\x64itCommentRequest\x12\x12\n\ncomment_id\x18\x01 \x01(\t\x12\x13\n\x0b\x63ontent_raw\x18\x02 \x01(\t\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\">\n\x13\x45\x64itCommentResponse\x12\'\n\x07\x63omment\x18\x01 \x01(\x0b\x32\x16.ytcomments.v1.Comment\"h\n\x14\x44\x65leteCommentRequest\x12\x12\n\ncomment_id\x18\x01 \x01(\t\x12\x13\n\x0bhard_delete\x18\x02 \x01(\x08\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"@\n\x15\x44\x65leteCommentResponse\x12\'\n\x07\x63omment\x18\x01 \x01(\x0b\x32\x16.ytcomments.v1.Comment\"T\n\x15RestoreCommentRequest\x12\x12\n\ncomment_id\x18\x01 \x01(\t\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"A\n\x16RestoreCommentResponse\x12\'\n\x07\x63omment\x18\x01 \x01(\x0b\x32\x16.ytcomments.v1.Comment\"M\n\x10GetCountsRequest\x12\x10\n\x08video_id\x18\x01 \x01(\t\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"A\n\x11GetCountsResponse\x12\x17\n\x0ftop_level_count\x18\x01 \x01(\x05\x12\x13\n\x0btotal_count\x18\x02 \x01(\x05*E\n\tSortOrder\x12\x14\n\x10SORT_UNSPECIFIED\x10\x00\x12\x10\n\x0cNEWEST_FIRST\x10\x01\x12\x10\n\x0cOLDEST_FIRST\x10\x02\x32\xcd\x04\n\nYtComments\x12H\n\x07ListTop\x12\x1d.ytcomments.v1.ListTopRequest\x1a\x1e.ytcomments.v1.ListTopResponse\x12T\n\x0bListReplies\x12!.ytcomments.v1.ListRepliesRequest\x1a\".ytcomments.v1.ListRepliesResponse\x12S\n\x06\x43reate\x12#.ytcomments.v1.CreateCommentRequest\x1a$.ytcomments.v1.CreateCommentResponse\x12M\n\x04\x45\x64it\x12!.ytcomments.v1.EditCommentRequest\x1a\".ytcomments.v1.EditCommentResponse\x12S\n\x06\x44\x65lete\x12#.ytcomments.v1.DeleteCommentRequest\x1a$.ytcomments.v1.DeleteCommentResponse\x12V\n\x07Restore\x12$.ytcomments.v1.RestoreCommentRequest\x1a%.ytcomments.v1.RestoreCommentResponse\x12N\n\tGetCounts\x12\x1f.ytcomments.v1.GetCountsRequest\x1a .ytcomments.v1.GetCountsResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10ytcomments.proto\x12\rytcomments.v1\"\x93\x01\n\x0bUserContext\x12\x10\n\x08user_uid\x18\x01 \x01(\t\x12\x10\n\x08username\x18\x02 \x01(\t\x12\x12\n\nchannel_id\x18\x03 \x01(\t\x12\x16\n\x0eis_video_owner\x18\x04 \x01(\x08\x12\x14\n\x0cis_moderator\x18\x05 \x01(\x08\x12\n\n\x02ip\x18\x06 \x01(\t\x12\x12\n\nuser_agent\x18\x07 \x01(\t\"\xfe\x01\n\x07\x43omment\x12\n\n\x02id\x18\x01 \x01(\t\x12\x10\n\x08video_id\x18\x02 \x01(\t\x12\x11\n\tparent_id\x18\x03 \x01(\t\x12\x13\n\x0b\x63ontent_raw\x18\x04 \x01(\t\x12\x14\n\x0c\x63ontent_html\x18\x05 \x01(\t\x12\x12\n\nis_deleted\x18\x06 \x01(\x08\x12\x0e\n\x06\x65\x64ited\x18\x07 \x01(\x08\x12\x12\n\ncreated_at\x18\x08 \x01(\x03\x12\x12\n\nupdated_at\x18\t \x01(\x03\x12\x10\n\x08user_uid\x18\n \x01(\t\x12\x10\n\x08username\x18\x0b \x01(\t\x12\x12\n\nchannel_id\x18\x0c \x01(\t\x12\x13\n\x0breply_count\x18\r \x01(\x05\"\xb3\x01\n\x0eListTopRequest\x12\x10\n\x08video_id\x18\x01 \x01(\t\x12\x11\n\tpage_size\x18\x02 \x01(\x05\x12\x12\n\npage_token\x18\x03 \x01(\t\x12&\n\x04sort\x18\x04 \x01(\x0e\x32\x18.ytcomments.v1.SortOrder\x12\x17\n\x0finclude_deleted\x18\x05 \x01(\x08\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"f\n\x0fListTopResponse\x12%\n\x05items\x18\x01 \x03(\x0b\x32\x16.ytcomments.v1.Comment\x12\x17\n\x0fnext_page_token\x18\x02 \x01(\t\x12\x13\n\x0btotal_count\x18\x03 \x01(\x05\"\xca\x01\n\x12ListRepliesRequest\x12\x10\n\x08video_id\x18\n \x01(\t\x12\x11\n\tparent_id\x18\x01 \x01(\t\x12\x11\n\tpage_size\x18\x02 \x01(\x05\x12\x12\n\npage_token\x18\x03 \x01(\t\x12&\n\x04sort\x18\x04 \x01(\x0e\x32\x18.ytcomments.v1.SortOrder\x12\x17\n\x0finclude_deleted\x18\x05 \x01(\x08\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"j\n\x13ListRepliesResponse\x12%\n\x05items\x18\x01 \x03(\x0b\x32\x16.ytcomments.v1.Comment\x12\x17\n\x0fnext_page_token\x18\x02 \x01(\t\x12\x13\n\x0btotal_count\x18\x03 \x01(\x05\"\x92\x01\n\x14\x43reateCommentRequest\x12\x10\n\x08video_id\x18\x01 \x01(\t\x12\x11\n\tparent_id\x18\x02 \x01(\t\x12\x13\n\x0b\x63ontent_raw\x18\x03 \x01(\t\x12\x17\n\x0fidempotency_key\x18\x04 \x01(\t\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"@\n\x15\x43reateCommentResponse\x12\'\n\x07\x63omment\x18\x01 \x01(\x0b\x32\x16.ytcomments.v1.Comment\"x\n\x12\x45\x64itCommentRequest\x12\x10\n\x08video_id\x18\n \x01(\t\x12\x12\n\ncomment_id\x18\x01 \x01(\t\x12\x13\n\x0b\x63ontent_raw\x18\x02 \x01(\t\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\">\n\x13\x45\x64itCommentResponse\x12\'\n\x07\x63omment\x18\x01 \x01(\x0b\x32\x16.ytcomments.v1.Comment\"z\n\x14\x44\x65leteCommentRequest\x12\x10\n\x08video_id\x18\n \x01(\t\x12\x12\n\ncomment_id\x18\x01 \x01(\t\x12\x13\n\x0bhard_delete\x18\x02 \x01(\x08\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"@\n\x15\x44\x65leteCommentResponse\x12\'\n\x07\x63omment\x18\x01 \x01(\x0b\x32\x16.ytcomments.v1.Comment\"f\n\x15RestoreCommentRequest\x12\x10\n\x08video_id\x18\n \x01(\t\x12\x12\n\ncomment_id\x18\x01 \x01(\t\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"A\n\x16RestoreCommentResponse\x12\'\n\x07\x63omment\x18\x01 \x01(\x0b\x32\x16.ytcomments.v1.Comment\"M\n\x10GetCountsRequest\x12\x10\n\x08video_id\x18\x01 \x01(\t\x12\'\n\x03\x63tx\x18\x64 \x01(\x0b\x32\x1a.ytcomments.v1.UserContext\"A\n\x11GetCountsResponse\x12\x17\n\x0ftop_level_count\x18\x01 \x01(\x05\x12\x13\n\x0btotal_count\x18\x02 \x01(\x05*E\n\tSortOrder\x12\x14\n\x10SORT_UNSPECIFIED\x10\x00\x12\x10\n\x0cNEWEST_FIRST\x10\x01\x12\x10\n\x0cOLDEST_FIRST\x10\x02\x32\xcd\x04\n\nYtComments\x12H\n\x07ListTop\x12\x1d.ytcomments.v1.ListTopRequest\x1a\x1e.ytcomments.v1.ListTopResponse\x12T\n\x0bListReplies\x12!.ytcomments.v1.ListRepliesRequest\x1a\".ytcomments.v1.ListRepliesResponse\x12S\n\x06\x43reate\x12#.ytcomments.v1.CreateCommentRequest\x1a$.ytcomments.v1.CreateCommentResponse\x12M\n\x04\x45\x64it\x12!.ytcomments.v1.EditCommentRequest\x1a\".ytcomments.v1.EditCommentResponse\x12S\n\x06\x44\x65lete\x12#.ytcomments.v1.DeleteCommentRequest\x1a$.ytcomments.v1.DeleteCommentResponse\x12V\n\x07Restore\x12$.ytcomments.v1.RestoreCommentRequest\x1a%.ytcomments.v1.RestoreCommentResponse\x12N\n\tGetCounts\x12\x1f.ytcomments.v1.GetCountsRequest\x1a .ytcomments.v1.GetCountsResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'ytcomments_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_SORTORDER']._serialized_start=1877
-  _globals['_SORTORDER']._serialized_end=1946
+  _globals['_SORTORDER']._serialized_start=1949
+  _globals['_SORTORDER']._serialized_end=2018
   _globals['_USERCONTEXT']._serialized_start=36
   _globals['_USERCONTEXT']._serialized_end=183
   _globals['_COMMENT']._serialized_start=186
@@ -42,29 +42,29 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_LISTTOPRESPONSE']._serialized_start=624
   _globals['_LISTTOPRESPONSE']._serialized_end=726
   _globals['_LISTREPLIESREQUEST']._serialized_start=729
-  _globals['_LISTREPLIESREQUEST']._serialized_end=913
-  _globals['_LISTREPLIESRESPONSE']._serialized_start=915
-  _globals['_LISTREPLIESRESPONSE']._serialized_end=1021
-  _globals['_CREATECOMMENTREQUEST']._serialized_start=1024
-  _globals['_CREATECOMMENTREQUEST']._serialized_end=1170
-  _globals['_CREATECOMMENTRESPONSE']._serialized_start=1172
-  _globals['_CREATECOMMENTRESPONSE']._serialized_end=1236
-  _globals['_EDITCOMMENTREQUEST']._serialized_start=1238
-  _globals['_EDITCOMMENTREQUEST']._serialized_end=1340
-  _globals['_EDITCOMMENTRESPONSE']._serialized_start=1342
-  _globals['_EDITCOMMENTRESPONSE']._serialized_end=1404
-  _globals['_DELETECOMMENTREQUEST']._serialized_start=1406
-  _globals['_DELETECOMMENTREQUEST']._serialized_end=1510
-  _globals['_DELETECOMMENTRESPONSE']._serialized_start=1512
-  _globals['_DELETECOMMENTRESPONSE']._serialized_end=1576
-  _globals['_RESTORECOMMENTREQUEST']._serialized_start=1578
-  _globals['_RESTORECOMMENTREQUEST']._serialized_end=1662
-  _globals['_RESTORECOMMENTRESPONSE']._serialized_start=1664
-  _globals['_RESTORECOMMENTRESPONSE']._serialized_end=1729
-  _globals['_GETCOUNTSREQUEST']._serialized_start=1731
-  _globals['_GETCOUNTSREQUEST']._serialized_end=1808
-  _globals['_GETCOUNTSRESPONSE']._serialized_start=1810
-  _globals['_GETCOUNTSRESPONSE']._serialized_end=1875
-  _globals['_YTCOMMENTS']._serialized_start=1949
-  _globals['_YTCOMMENTS']._serialized_end=2538
+  _globals['_LISTREPLIESREQUEST']._serialized_end=931
+  _globals['_LISTREPLIESRESPONSE']._serialized_start=933
+  _globals['_LISTREPLIESRESPONSE']._serialized_end=1039
+  _globals['_CREATECOMMENTREQUEST']._serialized_start=1042
+  _globals['_CREATECOMMENTREQUEST']._serialized_end=1188
+  _globals['_CREATECOMMENTRESPONSE']._serialized_start=1190
+  _globals['_CREATECOMMENTRESPONSE']._serialized_end=1254
+  _globals['_EDITCOMMENTREQUEST']._serialized_start=1256
+  _globals['_EDITCOMMENTREQUEST']._serialized_end=1376
+  _globals['_EDITCOMMENTRESPONSE']._serialized_start=1378
+  _globals['_EDITCOMMENTRESPONSE']._serialized_end=1440
+  _globals['_DELETECOMMENTREQUEST']._serialized_start=1442
+  _globals['_DELETECOMMENTREQUEST']._serialized_end=1564
+  _globals['_DELETECOMMENTRESPONSE']._serialized_start=1566
+  _globals['_DELETECOMMENTRESPONSE']._serialized_end=1630
+  _globals['_RESTORECOMMENTREQUEST']._serialized_start=1632
+  _globals['_RESTORECOMMENTREQUEST']._serialized_end=1734
+  _globals['_RESTORECOMMENTRESPONSE']._serialized_start=1736
+  _globals['_RESTORECOMMENTRESPONSE']._serialized_end=1801
+  _globals['_GETCOUNTSREQUEST']._serialized_start=1803
+  _globals['_GETCOUNTSREQUEST']._serialized_end=1880
+  _globals['_GETCOUNTSRESPONSE']._serialized_start=1882
+  _globals['_GETCOUNTSRESPONSE']._serialized_end=1947
+  _globals['_YTCOMMENTS']._serialized_start=2021
+  _globals['_YTCOMMENTS']._serialized_end=2610
 # @@protoc_insertion_point(module_scope)

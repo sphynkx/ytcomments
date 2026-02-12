@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ytcomments.v1;
 
-// Central API for comments service (skeleton v1)
+// Central API for comments service (v1)
 
 message UserContext {
   string user_uid = 1;
@@ -51,6 +51,8 @@ message ListTopResponse {
 }
 
 message ListRepliesRequest {
+  string video_id = 10;
+
   string parent_id = 1;
   int32 page_size = 2;
   string page_token = 3;
@@ -74,6 +76,8 @@ message CreateCommentRequest {
 message CreateCommentResponse { Comment comment = 1; }
 
 message EditCommentRequest {
+  string video_id = 10;
+
   string comment_id = 1;
   string content_raw = 2;
   UserContext ctx = 100;
@@ -81,6 +85,8 @@ message EditCommentRequest {
 message EditCommentResponse { Comment comment = 1; }
 
 message DeleteCommentRequest {
+  string video_id = 10;
+
   string comment_id = 1;
   bool hard_delete = 2;
   UserContext ctx = 100;
@@ -88,6 +94,8 @@ message DeleteCommentRequest {
 message DeleteCommentResponse { Comment comment = 1; }
 
 message RestoreCommentRequest {
+  string video_id = 10;
+
   string comment_id = 1;
   UserContext ctx = 100;
 }
