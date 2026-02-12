@@ -390,6 +390,15 @@ def _set_user_vote(video_id: str, comment_id: str, user_uid: str, vote: int) -> 
     )
 
 
+def _delete_vote_doc(video_id: str, comment_id: str, user_uid: str) -> None:
+    ctx = connect()
+    did = vote_doc_id(video_id, comment_id, user_uid)
+    try:
+        ctx.coll.remove(did)
+    except Exception:
+        pass
+
+
 def apply_vote(video_id: str, user_uid: str, comment_id: str, vote: int) -> tuple[int, int, int]:
     """
     vote: -1,0,1
@@ -398,32 +407,34 @@ def apply_vote(video_id: str, user_uid: str, comment_id: str, vote: int) -> tupl
     if vote not in (-1, 0, 1):
         raise ValueError("invalid vote")
 
+    # First: ensure comment exists in this video's thread (prevents orphan cvote docs)
+    thread, _ = _get_or_create_thread(video_id)
+    if comment_id not in (thread.get("comments") or {}):
+        # cleanup if exists
+        _delete_vote_doc(video_id, comment_id, user_uid)
+        raise KeyError("not_found")
+
     old_vote = _get_user_vote(video_id, comment_id, user_uid)
     new_vote = vote
 
-    # No-op
     if old_vote == new_vote:
-        # Read counters from thread
-        thread, _ = _get_or_create_thread(video_id)
         c = (thread.get("comments") or {}).get(comment_id) or {}
         return int(c.get("likes", 0) or 0), int(c.get("dislikes", 0) or 0), int(old_vote)
 
     def op():
-        thread, cas = _get_or_create_thread(video_id)
-        if comment_id not in thread["comments"]:
+        thread2, cas = _get_or_create_thread(video_id)
+        if comment_id not in thread2["comments"]:
             raise KeyError("not_found")
 
-        c = thread["comments"][comment_id]
+        c = thread2["comments"][comment_id]
         likes = int(c.get("likes", 0) or 0)
         dislikes = int(c.get("dislikes", 0) or 0)
 
-        # remove old
         if old_vote == 1:
             likes = max(likes - 1, 0)
         elif old_vote == -1:
             dislikes = max(dislikes - 1, 0)
 
-        # add new
         if new_vote == 1:
             likes += 1
         elif new_vote == -1:
@@ -433,7 +444,7 @@ def apply_vote(video_id: str, user_uid: str, comment_id: str, vote: int) -> tupl
         c["dislikes"] = dislikes
         c["updated_at"] = _now_ms()
 
-        _replace_thread(video_id, thread, cas)
+        _replace_thread(video_id, thread2, cas)
         return likes, dislikes
 
     likes, dislikes = _retry_cas(op)
