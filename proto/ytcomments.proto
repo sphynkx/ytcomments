@@ -28,6 +28,10 @@ message Comment {
   string username = 11;
   string channel_id = 12;
   int32 reply_count = 13;
+
+  // Aggregated reactions
+  int32 likes = 14;
+  int32 dislikes = 15;
 }
 
 enum SortOrder {
@@ -52,7 +56,6 @@ message ListTopResponse {
 
 message ListRepliesRequest {
   string video_id = 10;
-
   string parent_id = 1;
   int32 page_size = 2;
   string page_token = 3;
@@ -77,7 +80,6 @@ message CreateCommentResponse { Comment comment = 1; }
 
 message EditCommentRequest {
   string video_id = 10;
-
   string comment_id = 1;
   string content_raw = 2;
   UserContext ctx = 100;
@@ -86,7 +88,6 @@ message EditCommentResponse { Comment comment = 1; }
 
 message DeleteCommentRequest {
   string video_id = 10;
-
   string comment_id = 1;
   bool hard_delete = 2;
   UserContext ctx = 100;
@@ -95,7 +96,6 @@ message DeleteCommentResponse { Comment comment = 1; }
 
 message RestoreCommentRequest {
   string video_id = 10;
-
   string comment_id = 1;
   UserContext ctx = 100;
 }
@@ -110,6 +110,24 @@ message GetCountsResponse {
   int32 total_count = 2;
 }
 
+message VoteRequest {
+  string video_id = 1;
+  string comment_id = 2;
+
+  // 1=like, -1=dislike, 0=clear
+  int32 vote = 3;
+
+  UserContext ctx = 100;
+}
+
+message VoteResponse {
+  bool ok = 1;
+  int32 likes = 2;
+  int32 dislikes = 3;
+  int32 my_vote = 4;
+  string user_id = 5;
+}
+
 service YtComments {
   rpc ListTop(ListTopRequest) returns (ListTopResponse);
   rpc ListReplies(ListRepliesRequest) returns (ListRepliesResponse);
@@ -118,4 +136,6 @@ service YtComments {
   rpc Delete(DeleteCommentRequest) returns (DeleteCommentResponse);
   rpc Restore(RestoreCommentRequest) returns (RestoreCommentResponse);
   rpc GetCounts(GetCountsRequest) returns (GetCountsResponse);
+
+  rpc Vote(VoteRequest) returns (VoteResponse);
 }

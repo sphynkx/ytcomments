@@ -6,6 +6,7 @@ import uuid
 import grpc
 
 from db.couchbase_db import (
+    apply_vote,
     create_comment,
     delete_comment,
     edit_comment,
@@ -35,6 +36,8 @@ def _pb_from_doc(d: dict) -> pb.Comment:
         username=d.get("username", "") or "",
         channel_id=d.get("channel_id", "") or "",
         reply_count=int(d.get("reply_count", 0) or 0),
+        likes=int(d.get("likes", 0) or 0),
+        dislikes=int(d.get("dislikes", 0) or 0),
     )
 
 
@@ -46,7 +49,6 @@ def _page_size(req) -> int:
 
 
 def _newest_first(sort: int) -> bool:
-    # NEWEST_FIRST=1, OLDEST_FIRST=2, 0 unspecified
     return sort == pb.NEWEST_FIRST
 
 
@@ -166,3 +168,34 @@ class YtCommentsServicer(pbg.YtCommentsServicer):
 
         top, total = get_counts(video_id)
         return pb.GetCountsResponse(top_level_count=int(top), total_count=int(total))
+
+    def Vote(self, request: pb.VoteRequest, context: grpc.ServicerContext) -> pb.VoteResponse:
+        video_id = (request.video_id or "").strip()
+        comment_id = (request.comment_id or "").strip()
+        vote = int(request.vote)
+
+        if not video_id:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "video_id is required")
+        if not comment_id:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "comment_id is required")
+        if vote not in (-1, 0, 1):
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "vote must be -1,0,1")
+
+        user_uid = (request.ctx.user_uid if request.ctx else "") or ""
+        if not user_uid:
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "ctx.user_uid is required")
+
+        try:
+            likes, dislikes, my_vote = apply_vote(video_id, user_uid, comment_id, vote)
+        except KeyError:
+            context.abort(grpc.StatusCode.NOT_FOUND, "comment not found")
+        except Exception as e:
+            context.abort(grpc.StatusCode.INTERNAL, f"vote failed: {e}")
+
+        return pb.VoteResponse(
+            ok=True,
+            likes=int(likes),
+            dislikes=int(dislikes),
+            my_vote=int(my_vote),
+            user_id=user_uid,
+        )

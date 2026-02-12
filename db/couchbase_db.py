@@ -4,7 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Optional, Tuple, List
+from typing import Any, Optional
 
 from config.couchbase_cfg import cb_cfg
 
@@ -103,6 +103,10 @@ def thread_doc_id(video_id: str) -> str:
     return f"thread::{video_id}"
 
 
+def vote_doc_id(video_id: str, comment_id: str, user_uid: str) -> str:
+    return f"cvote::{video_id}::{comment_id}::{user_uid}"
+
+
 def _empty_thread(video_id: str) -> dict:
     now = _now_ms()
     return {
@@ -158,8 +162,7 @@ def _parse_offset(page_token: str) -> int:
         return 0
 
 
-def _sorted_ids(ids: list[str], doc: dict, newest_first: bool) -> list[str]:
-    # Store ids in create order, also suport reverse for NEWEST_FIRST
+def _sorted_ids(ids: list[str], newest_first: bool) -> list[str]:
     if not newest_first:
         return ids
     return list(reversed(ids))
@@ -201,6 +204,9 @@ def create_comment(
             "channel_id": channel_id or "",
             "reply_count": 0,
             "seq": seq,
+            # NEW: votes counters
+            "likes": 0,
+            "dislikes": 0,
         }
 
         thread["comments"][comment_id] = c
@@ -211,7 +217,6 @@ def create_comment(
         else:
             arr = thread["replies_index"].setdefault(parent_id, [])
             arr.append(comment_id)
-            # bump parent reply_count
             thread["comments"][parent_id]["reply_count"] = int(thread["comments"][parent_id].get("reply_count", 0) or 0) + 1
 
         thread["counts"]["total"] = int(thread["counts"].get("total", 0) or 0) + 1
@@ -224,7 +229,7 @@ def create_comment(
 
 def list_top(video_id: str, page_size: int, page_token: str, newest_first: bool, include_deleted: bool) -> tuple[list[dict], str, int]:
     thread, _ = _get_or_create_thread(video_id)
-    ids = _sorted_ids(list(thread.get("top_index", []) or []), thread, newest_first)
+    ids = _sorted_ids(list(thread.get("top_index", []) or []), newest_first)
 
     if not include_deleted:
         ids = [cid for cid in ids if not bool(thread["comments"].get(cid, {}).get("is_deleted", False))]
@@ -244,7 +249,7 @@ def list_replies(video_id: str, parent_id: str, page_size: int, page_token: str,
     parent_id = parent_id or ""
 
     ids = list((thread.get("replies_index", {}) or {}).get(parent_id, []) or [])
-    ids = _sorted_ids(ids, thread, newest_first)
+    ids = _sorted_ids(ids, newest_first)
 
     if not include_deleted:
         ids = [cid for cid in ids if not bool(thread["comments"].get(cid, {}).get("is_deleted", False))]
@@ -284,7 +289,6 @@ def delete_comment(video_id: str, comment_id: str, hard_delete: bool) -> dict:
         parent_id = c.get("parent_id", "") or ""
 
         if hard_delete:
-            # remove from indexes
             if not parent_id:
                 if comment_id in thread["top_index"]:
                     thread["top_index"].remove(comment_id)
@@ -316,6 +320,8 @@ def delete_comment(video_id: str, comment_id: str, hard_delete: bool) -> dict:
                 "username": c.get("username", "") or "",
                 "channel_id": c.get("channel_id", "") or "",
                 "reply_count": int(c.get("reply_count", 0) or 0),
+                "likes": int(c.get("likes", 0) or 0),
+                "dislikes": int(c.get("dislikes", 0) or 0),
             }
         else:
             c["is_deleted"] = True
@@ -349,3 +355,87 @@ def get_counts(video_id: str) -> tuple[int, int]:
     top = int(thread.get("counts", {}).get("top", 0) or 0)
     total = int(thread.get("counts", {}).get("total", 0) or 0)
     return top, total
+
+
+# ---------------------------
+# Votes
+# ---------------------------
+
+def _get_user_vote(video_id: str, comment_id: str, user_uid: str) -> int:
+    ctx = connect()
+    did = vote_doc_id(video_id, comment_id, user_uid)
+    try:
+        res = ctx.coll.get(did)
+        doc = res.content_as[dict]
+        return int(doc.get("vote", 0) or 0)
+    except DocumentNotFoundException:
+        return 0
+    except Exception:
+        return 0
+
+
+def _set_user_vote(video_id: str, comment_id: str, user_uid: str, vote: int) -> None:
+    ctx = connect()
+    did = vote_doc_id(video_id, comment_id, user_uid)
+    ctx.coll.upsert(
+        did,
+        {
+            "type": "comment_vote",
+            "video_id": video_id,
+            "comment_id": comment_id,
+            "user_uid": user_uid,
+            "vote": int(vote),
+            "updated_at": _now_ms(),
+        },
+    )
+
+
+def apply_vote(video_id: str, user_uid: str, comment_id: str, vote: int) -> tuple[int, int, int]:
+    """
+    vote: -1,0,1
+    Returns: (likes, dislikes, my_vote)
+    """
+    if vote not in (-1, 0, 1):
+        raise ValueError("invalid vote")
+
+    old_vote = _get_user_vote(video_id, comment_id, user_uid)
+    new_vote = vote
+
+    # No-op
+    if old_vote == new_vote:
+        # Read counters from thread
+        thread, _ = _get_or_create_thread(video_id)
+        c = (thread.get("comments") or {}).get(comment_id) or {}
+        return int(c.get("likes", 0) or 0), int(c.get("dislikes", 0) or 0), int(old_vote)
+
+    def op():
+        thread, cas = _get_or_create_thread(video_id)
+        if comment_id not in thread["comments"]:
+            raise KeyError("not_found")
+
+        c = thread["comments"][comment_id]
+        likes = int(c.get("likes", 0) or 0)
+        dislikes = int(c.get("dislikes", 0) or 0)
+
+        # remove old
+        if old_vote == 1:
+            likes = max(likes - 1, 0)
+        elif old_vote == -1:
+            dislikes = max(dislikes - 1, 0)
+
+        # add new
+        if new_vote == 1:
+            likes += 1
+        elif new_vote == -1:
+            dislikes += 1
+
+        c["likes"] = likes
+        c["dislikes"] = dislikes
+        c["updated_at"] = _now_ms()
+
+        _replace_thread(video_id, thread, cas)
+        return likes, dislikes
+
+    likes, dislikes = _retry_cas(op)
+    _set_user_vote(video_id, comment_id, user_uid, new_vote)
+    return int(likes), int(dislikes), int(new_vote)
