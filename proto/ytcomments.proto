@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package ytcomments.v1;
+
+// Central API for comments service (skeleton v1)
+
+message UserContext {
+  string user_uid = 1;
+  string username = 2;
+  string channel_id = 3;
+  bool is_video_owner = 4;
+  bool is_moderator = 5;
+  string ip = 6;
+  string user_agent = 7;
+}
+
+message Comment {
+  string id = 1;
+  string video_id = 2;
+  string parent_id = 3;
+  string content_raw = 4;
+  string content_html = 5;
+  bool is_deleted = 6;
+  bool edited = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+  string user_uid = 10;
+  string username = 11;
+  string channel_id = 12;
+  int32 reply_count = 13;
+}
+
+enum SortOrder {
+  SORT_UNSPECIFIED = 0;
+  NEWEST_FIRST = 1;
+  OLDEST_FIRST = 2;
+}
+
+message ListTopRequest {
+  string video_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  SortOrder sort = 4;
+  bool include_deleted = 5;
+  UserContext ctx = 100;
+}
+message ListTopResponse {
+  repeated Comment items = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message ListRepliesRequest {
+  string parent_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  SortOrder sort = 4;
+  bool include_deleted = 5;
+  UserContext ctx = 100;
+}
+message ListRepliesResponse {
+  repeated Comment items = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message CreateCommentRequest {
+  string video_id = 1;
+  string parent_id = 2;
+  string content_raw = 3;
+  string idempotency_key = 4;
+  UserContext ctx = 100;
+}
+message CreateCommentResponse { Comment comment = 1; }
+
+message EditCommentRequest {
+  string comment_id = 1;
+  string content_raw = 2;
+  UserContext ctx = 100;
+}
+message EditCommentResponse { Comment comment = 1; }
+
+message DeleteCommentRequest {
+  string comment_id = 1;
+  bool hard_delete = 2;
+  UserContext ctx = 100;
+}
+message DeleteCommentResponse { Comment comment = 1; }
+
+message RestoreCommentRequest {
+  string comment_id = 1;
+  UserContext ctx = 100;
+}
+message RestoreCommentResponse { Comment comment = 1; }
+
+message GetCountsRequest {
+  string video_id = 1;
+  UserContext ctx = 100;
+}
+message GetCountsResponse {
+  int32 top_level_count = 1;
+  int32 total_count = 2;
+}
+
+service YtComments {
+  rpc ListTop(ListTopRequest) returns (ListTopResponse);
+  rpc ListReplies(ListRepliesRequest) returns (ListRepliesResponse);
+  rpc Create(CreateCommentRequest) returns (CreateCommentResponse);
+  rpc Edit(EditCommentRequest) returns (EditCommentResponse);
+  rpc Delete(DeleteCommentRequest) returns (DeleteCommentResponse);
+  rpc Restore(RestoreCommentRequest) returns (RestoreCommentResponse);
+  rpc GetCounts(GetCountsRequest) returns (GetCountsResponse);
+}

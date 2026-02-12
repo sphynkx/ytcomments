@@ -1,0 +1,38 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.dist/
+.build/
+.pytest_cache/
+.coverage
+.mypy_cache/
+.idea/
+.vscode/
+
+.venv/
+.env
+install/.env
+
+# Logs
+*.log
+log/
+logs/
+var/log/
+
+# Project-specific
+_XLAM/
+
+# Storage: keep only gitkeep
+storage/*
+!storage/.gitkeep
+
+celerybeat-schedule
+
+# Build artifacts and local dependencies for player
+node_modules/
+player.js.map
+embed.js.map
+.build.watch.log
+.build.watch.pid
+package-lock.json
