@@ -128,6 +128,23 @@ message VoteResponse {
   string user_id = 5;
 }
 
+// --- NEW: fetch current user's votes for a set of comments ---
+message GetMyVotesRequest {
+  string video_id = 1;
+  repeated string comment_ids = 2;
+  UserContext ctx = 100;
+}
+
+message CommentVote {
+  string comment_id = 1;
+  // 1=like, -1=dislike, 0=none
+  int32 vote = 2;
+}
+
+message GetMyVotesResponse {
+  repeated CommentVote votes = 1;
+}
+
 service YtComments {
   rpc ListTop(ListTopRequest) returns (ListTopResponse);
   rpc ListReplies(ListRepliesRequest) returns (ListRepliesResponse);
@@ -138,4 +155,5 @@ service YtComments {
   rpc GetCounts(GetCountsRequest) returns (GetCountsResponse);
 
   rpc Vote(VoteRequest) returns (VoteResponse);
+  rpc GetMyVotes(GetMyVotesRequest) returns (GetMyVotesResponse);
 }

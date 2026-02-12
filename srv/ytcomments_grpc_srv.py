@@ -14,6 +14,7 @@ from db.couchbase_db import (
     list_replies,
     list_top,
     restore_comment,
+    get_my_votes,  # NEW
 )
 from proto import ytcomments_pb2 as pb
 from proto import ytcomments_pb2_grpc as pbg
@@ -199,3 +200,38 @@ class YtCommentsServicer(pbg.YtCommentsServicer):
             my_vote=int(my_vote),
             user_id=user_uid,
         )
+
+    # NEW: return current user's votes for a set of comments
+    def GetMyVotes(self, request: pb.GetMyVotesRequest, context: grpc.ServicerContext) -> pb.GetMyVotesResponse:
+        video_id = (request.video_id or "").strip()
+        if not video_id:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "video_id is required")
+
+        user_uid = (request.ctx.user_uid if request.ctx else "") or ""
+        if not user_uid:
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "ctx.user_uid is required")
+
+        comment_ids = []
+        for cid in list(request.comment_ids or []):
+            cid = (cid or "").strip()
+            if cid:
+                comment_ids.append(cid)
+
+        # Allow empty list: return empty response
+        if not comment_ids:
+            return pb.GetMyVotesResponse(votes=[])
+
+        try:
+            votes_map = get_my_votes(video_id=video_id, user_uid=user_uid, comment_ids=comment_ids)
+        except Exception as e:
+            context.abort(grpc.StatusCode.INTERNAL, f"get_my_votes failed: {e}")
+
+        out = []
+        # keep request order stable
+        for cid in comment_ids:
+            v = int(votes_map.get(cid, 0) or 0)
+            if v not in (-1, 0, 1):
+                v = 0
+            out.append(pb.CommentVote(comment_id=cid, vote=v))
+
+        return pb.GetMyVotesResponse(votes=out)

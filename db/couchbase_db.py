@@ -204,7 +204,7 @@ def create_comment(
             "channel_id": channel_id or "",
             "reply_count": 0,
             "seq": seq,
-            # NEW: votes counters
+            # votes counters
             "likes": 0,
             "dislikes": 0,
         }
@@ -397,6 +397,56 @@ def _delete_vote_doc(video_id: str, comment_id: str, user_uid: str) -> None:
         ctx.coll.remove(did)
     except Exception:
         pass
+
+
+def get_my_votes(video_id: str, user_uid: str, comment_ids: list[str]) -> dict[str, int]:
+    """
+    Batch get votes for user_uid for the given comment_ids in the given video.
+    Returns dict: comment_id -> vote (-1/0/1)
+    """
+    video_id = (video_id or "").strip()
+    user_uid = (user_uid or "").strip()
+    if not video_id or not user_uid or not comment_ids:
+        return {}
+
+    # Deduplicate but keep stable order irrelevant here (caller may re-order).
+    unique_ids = []
+    seen = set()
+    for cid in comment_ids:
+        cid = (cid or "").strip()
+        if not cid or cid in seen:
+            continue
+        seen.add(cid)
+        unique_ids.append(cid)
+
+    ctx = connect()
+
+    keys = [vote_doc_id(video_id, cid, user_uid) for cid in unique_ids]
+
+    out: dict[str, int] = {}
+
+    # Couchbase SDK: get_multi returns a MultiGetResult-like object that is iterable over key->result
+    # We'll use defensive access to support SDK differences.
+    try:
+        res = ctx.coll.get_multi(keys)
+    except Exception:
+        # fallback: single gets (slower but safe)
+        for cid in unique_ids:
+            out[cid] = _get_user_vote(video_id, cid, user_uid)
+        return out
+
+    for cid, key in zip(unique_ids, keys):
+        try:
+            r = res.get(key)  # type: ignore[attr-defined]
+            doc = r.content_as[dict]  # type: ignore[attr-defined]
+            v = int(doc.get("vote", 0) or 0)
+            if v not in (-1, 0, 1):
+                v = 0
+            out[cid] = v
+        except Exception:
+            out[cid] = 0
+
+    return out
 
 
 def apply_vote(video_id: str, user_uid: str, comment_id: str, vote: int) -> tuple[int, int, int]:

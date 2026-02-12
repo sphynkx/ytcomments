@@ -74,6 +74,11 @@ class YtCommentsStub(object):
                 request_serializer=ytcomments__pb2.VoteRequest.SerializeToString,
                 response_deserializer=ytcomments__pb2.VoteResponse.FromString,
                 _registered_method=True)
+        self.GetMyVotes = channel.unary_unary(
+                '/ytcomments.v1.YtComments/GetMyVotes',
+                request_serializer=ytcomments__pb2.GetMyVotesRequest.SerializeToString,
+                response_deserializer=ytcomments__pb2.GetMyVotesResponse.FromString,
+                _registered_method=True)
 
 
 class YtCommentsServicer(object):
@@ -127,6 +132,12 @@ class YtCommentsServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetMyVotes(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_YtCommentsServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -169,6 +180,11 @@ def add_YtCommentsServicer_to_server(servicer, server):
                     servicer.Vote,
                     request_deserializer=ytcomments__pb2.VoteRequest.FromString,
                     response_serializer=ytcomments__pb2.VoteResponse.SerializeToString,
+            ),
+            'GetMyVotes': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMyVotes,
+                    request_deserializer=ytcomments__pb2.GetMyVotesRequest.FromString,
+                    response_serializer=ytcomments__pb2.GetMyVotesResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -387,6 +403,33 @@ class YtComments(object):
             '/ytcomments.v1.YtComments/Vote',
             ytcomments__pb2.VoteRequest.SerializeToString,
             ytcomments__pb2.VoteResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetMyVotes(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ytcomments.v1.YtComments/GetMyVotes',
+            ytcomments__pb2.GetMyVotesRequest.SerializeToString,
+            ytcomments__pb2.GetMyVotesResponse.FromString,
             options,
             channel_credentials,
             insecure,
