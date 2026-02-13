@@ -1,4 +1,4 @@
-New generation of ytcomments service. Previous version (mongodb based) - see in the [separate repo](https://github.com/sphynkx/ytcomments_mongodb) (deprecated).
+New generation of ytcomments service for [YurTube app](https://github.com/sphynkx/yurtube). Previous version (mongodb based) - see in the [separate repo](https://github.com/sphynkx/ytcomments_mongodb) (deprecated).
 
 
 ## Install DB
@@ -63,12 +63,10 @@ View top comments and replies for some video.
 
 Use `video_id` which has comments:
 ```bash
-grpcurl -plaintext -d '{"video_id":"HoTVbCpF-Q73","page_size":10,"include_deleted":false,"sort":"NEWEST_FIRST"}' 127.0.0.1:9093 ytco
-mments.v1.YtComments/ListTop
+grpcurl -plaintext -d '{"video_id":"HoTVbCpF-Q73","page_size":10,"include_deleted":false,"sort":"NEWEST_FIRST"}' 127.0.0.1:9093 ytcomments.v1.YtComments/ListTop
 ```
 
 Use received comment `id` as `parent_id`:
 ```bash
-grpcurl -plaintext -d '{"video_id":"HoTVbCpF-Q73","parent_id":"504fbff5a01546dd8ad679006c77333a","page_size":50,"include_deleted":fa
-lse,"sort":"OLDEST_FIRST"}' 127.0.0.1:9093 ytcomments.v1.YtComments/ListReplies
+grpcurl -plaintext -d '{"video_id":"HoTVbCpF-Q73","parent_id":"504fbff5a01546dd8ad679006c77333a","page_size":50,"include_deleted":false,"sort":"OLDEST_FIRST"}' 127.0.0.1:9093 ytcomments.v1.YtComments/ListReplies
 ```
