@@ -42,12 +42,6 @@ uvicorn main:app --reload --port 8800
 ```
 Check health: http://localhost:8800/api/health
 
-Check via reflections:
-```bash
-grpcurl -plaintext 127.0.0.1:9093 list
-grpcurl -plaintext 127.0.0.1:9093 describe ytcomments.v1.YtComments
-```
-
 Use: http://localhost:8800/ Add some branch of comments.. In DB console repeat Query (as above)..
 
 
@@ -56,4 +50,24 @@ Use: http://localhost:8800/ Add some branch of comments.. In DB console repeat Q
 cp install/ytcomments.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now ytcomments.service
+```
+
+## Work with reflections
+```bash
+grpcurl -plaintext 127.0.0.1:9093 list
+grpcurl -plaintext 127.0.0.1:9093 describe ytcomments.v1.YtComments
+```
+
+View top comments and replies for some video.
+
+Use `video_id` which has comments:
+```bash
+grpcurl -plaintext -d '{"video_id":"HoTVbCpF-Q73","page_size":10,"include_deleted":false,"sort":"NEWEST_FIRST"}' 127.0.0.1:9093 ytco
+mments.v1.YtComments/ListTop
+```
+
+Use received comment `id` as `parent_id`:
+```bash
+grpcurl -plaintext -d '{"video_id":"HoTVbCpF-Q73","parent_id":"504fbff5a01546dd8ad679006c77333a","page_size":50,"include_deleted":fa
+lse,"sort":"OLDEST_FIRST"}' 127.0.0.1:9093 ytcomments.v1.YtComments/ListReplies
 ```
