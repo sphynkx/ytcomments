@@ -20,7 +20,7 @@ Result will empty for now..
 ## Install service
 __NOTE__: `couchbase` python module supports python 3.10 or lower.. Either need to build wheel manually.. So use `uv`..
 ```bash
-dnf -y install uv
+dnf -y install uv grpcurl
 cd /opt
 git clone https://github.com/sphynkx/ytcomments
 cd ytcomments
@@ -41,6 +41,12 @@ Run:
 uvicorn main:app --reload --port 8800
 ```
 Check health: http://localhost:8800/api/health
+
+Check via reflections:
+```bash
+grpcurl -plaintext 127.0.0.1:9093 list
+grpcurl -plaintext 127.0.0.1:9093 describe ytcomments.v1.YtComments
+```
 
 Use: http://localhost:8800/ Add some branch of comments.. In DB console repeat Query (as above)..
 

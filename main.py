@@ -6,6 +6,7 @@ import threading
 from concurrent import futures
 
 import grpc
+from grpc_reflection.v1alpha import reflection
 
 from utils.log_ut import setup_logging
 
@@ -38,6 +39,14 @@ def main() -> None:
     ytcomments_pbg.add_YtCommentsServicer_to_server(YtCommentsServicer(), server)
     info_pbg.add_InfoServicer_to_server(InfoServicer(), server)
 
+    # Enable gRPC Server Reflection (service full names)
+    service_names = (
+        "ytcomments.v1.YtComments",
+        "ytcomments.v1.Info",
+        reflection.SERVICE_NAME,
+    )
+    reflection.enable_server_reflection(service_names, server)
+
     server.add_insecure_port(f"{app_cfg.grpc_host}:{app_cfg.grpc_port}")
     server.start()
     log.info("server started")
@@ -45,12 +54,10 @@ def main() -> None:
     stop_event = threading.Event()
 
     def _on_signal(signum, frame):  # noqa: ARG001
-        # First signal initiates graceful shutdown
         if not stop_event.is_set():
             log.info("signal %s received; shutting down...", signum)
             stop_event.set()
         else:
-            # Second signal: exit faster
             log.warning("signal %s received again; forcing stop", signum)
             try:
                 server.stop(grace=0)
@@ -60,10 +67,8 @@ def main() -> None:
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
 
-    # Wait until SIGINT/SIGTERM
     stop_event.wait()
 
-    # Graceful stop: allow in-flight RPCs to finish
     try:
         server.stop(grace=5).wait(timeout=6)
         log.info("server stopped")
