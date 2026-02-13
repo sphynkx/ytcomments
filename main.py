@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import signal
+import threading
 from concurrent import futures
 
 import grpc
@@ -39,7 +41,34 @@ def main() -> None:
     server.add_insecure_port(f"{app_cfg.grpc_host}:{app_cfg.grpc_port}")
     server.start()
     log.info("server started")
-    server.wait_for_termination()
+
+    stop_event = threading.Event()
+
+    def _on_signal(signum, frame):  # noqa: ARG001
+        # First signal initiates graceful shutdown
+        if not stop_event.is_set():
+            log.info("signal %s received; shutting down...", signum)
+            stop_event.set()
+        else:
+            # Second signal: exit faster
+            log.warning("signal %s received again; forcing stop", signum)
+            try:
+                server.stop(grace=0)
+            except Exception:
+                pass
+
+    signal.signal(signal.SIGINT, _on_signal)
+    signal.signal(signal.SIGTERM, _on_signal)
+
+    # Wait until SIGINT/SIGTERM
+    stop_event.wait()
+
+    # Graceful stop: allow in-flight RPCs to finish
+    try:
+        server.stop(grace=5).wait(timeout=6)
+        log.info("server stopped")
+    except Exception as e:
+        log.warning("server stop error: %s", e)
 
 
 if __name__ == "__main__":

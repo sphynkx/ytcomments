@@ -1,0 +1,31 @@
+[Unit]
+Description=ytcomments gRPC service
+Wants=network-online.target couchbase-server.service
+After=network-online.target couchbase-server.service
+
+# PartOf=couchbase-server.service
+
+[Service]
+Type=simple
+#User=ytcomments
+#Group=ytcomments
+WorkingDirectory=/opt/ytcomments
+
+Environment="PYTHONUNBUFFERED=1"
+# Environment="YTCOMMENTS_GRPC_HOST=127.0.0.1"
+# Environment="YTCOMMENTS_GRPC_PORT=9093"
+
+ExecStart=/opt/ytcomments/.venv/bin/python -m main
+
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10
+
+StandardOutput=journal
+StandardError=journal
+
+KillSignal=SIGINT
+SendSIGKILL=yes
+
+[Install]
+WantedBy=multi-user.target
