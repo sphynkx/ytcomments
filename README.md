@@ -45,3 +45,9 @@ Check health: http://localhost:8800/api/health
 Use: http://localhost:8800/ Add some branch of comments.. In DB console repeat Query (as above)..
 
 
+## Run as systemd service
+```bash
+cp install/ytcomments.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now ytcomments.service
+```
